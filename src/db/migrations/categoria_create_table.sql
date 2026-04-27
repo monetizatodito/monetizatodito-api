@@ -1,0 +1,12 @@
+
+    CREATE TABLE IF NOT EXISTS categoria (
+      id VARCHAR(50) PRIMARY KEY,
+      nombre VARCHAR(50) NOT NULL UNIQUE,
+      slug VARCHAR(100) UNIQUE,
+      descripcion TEXT,
+      "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP
+)
+
+
+      

@@ -1,0 +1,35 @@
+{
+    "empresa": {
+        "nombre": "Mi Empresa S.A.",
+        "direccion": "Av. Siempre Viva 742",
+        "telefono": "0998765432",
+        "email": "contacto@miempresa.com"
+    },
+    "numeroTicket": "TICKET-001",
+    "tipo": "factura",
+    "numberItem": 2,
+    "subTotalV": 20.5,
+    "subTotalC": 10,
+    "subTotalPVP": 15,
+    "totalV": 22,
+    "totalC": 18,
+    "totalPVP": 24,
+    "iva": 0.12,
+    "isPaid": true,
+    "paidAt": true,
+    "shippingAddress": {
+        "cedula": "1311137200",
+        "nombre": "ANGIE",
+        "email": "angie@gmail.com",
+        "celular": "0981361461",
+        "direccion": "LA MANA"
+    },
+    "orderItem": [
+        {
+            "id": "01924a5120c0-05a13790-0009-9c73f107",
+            "nombre": "pepino",
+            "cantidad": 1,
+            "precioV": 3
+        }
+    ]
+}

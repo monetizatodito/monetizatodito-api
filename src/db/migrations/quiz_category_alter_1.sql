@@ -1,0 +1,3 @@
+ALTER TABLE quiz_category
+        ADD COLUMN IF NOT EXISTS "order" INT DEFAULT 0,
+        ADD COLUMN IF NOT EXISTS is_active BOOLEAN DEFAULT TRUE;

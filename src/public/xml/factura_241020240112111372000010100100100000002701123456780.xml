@@ -1,0 +1,40 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<factura id="comprobante" version="1.1.0">
+  <infoTributaria>
+    <ambiente>01</ambiente>
+    <tipoEmision>01</tipoEmision>
+    <razonSocial>MOSANFARMA</razonSocial>
+    <nombreComercial>ANGIEFARMA</nombreComercial>
+    <ruc>1211137200001</ruc>
+    <claveAcceso>241020240112111372000010100100100000002701123456780</claveAcceso>
+    <codDoc>01</codDoc>
+    <estab>001</estab>
+    <ptoEmi>001</ptoEmi>
+    <secuencial>000000027</secuencial>
+    <numeroFactura>001-001-000000027</numeroFactura>
+    <dirMatriz>LA MANA</dirMatriz>
+  </infoTributaria>
+  <infoFactura>
+    <fechaEmision>24102024</fechaEmision>
+    <dirEstablecimiento>001</dirEstablecimiento>
+    <obligadoContabilidad>no</obligadoContabilidad>
+    <tipoIdentificacionComprador>05</tipoIdentificacionComprador>
+    <totalSinImpuestos>20.50</totalSinImpuestos>
+    <totalDescuento>NaN</totalDescuento>
+  </infoFactura>
+  <detalles>
+    <detalle>
+      <codigoPrincipal>26</codigoPrincipal>
+      <descripcion>pepino</descripcion>
+      <cantidad>1</cantidad>
+      <precioUnitario>3.00</precioUnitario>
+      <descuento>NaN</descuento>
+      <precioTotalSinImpuesto>20.50</precioTotalSinImpuesto>
+    </detalle>
+  </detalles>
+  <infoAdicional>
+<campoAdicional nombre="Direccion">LA MANA</campoAdicional>
+<campoAdicional nombre="Telefono">0981361461</campoAdicional>
+<campoAdicional nombre="Email">angie@gmail.com</campoAdicional>
+  </infoAdicional>
+</factura>

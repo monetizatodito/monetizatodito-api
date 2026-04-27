@@ -1,0 +1,21 @@
+\usepackage{graphicx}
+\usepackage{eso-pic}
+\usepackage{transparent}
+
+\providecommand{\wmpath}{}
++\providecommand{\wmwidth}{0.90}  % 90% del ancho de página
++\providecommand{\wmangle}{-15}
+\providecommand{\wmopacity}{0.14}
+
+% 👉 Cambiar centro relativo al ÁREA DE PÁGINA
+\AddToShipoutPictureBG*{%
+  \AtPageCenter{%
+    \begingroup
+      \transparent{\wmopacity}%
+      \makebox(0,0){%
+        % Si aún ves recorte, usa \paperwidth en lugar de \textwidth:
+        \includegraphics[width=\wmwidth\paperwidth,angle=\wmangle]{\wmpath}%
+      }%
+    \endgroup
+  }%
+}

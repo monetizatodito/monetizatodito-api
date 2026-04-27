@@ -1,0 +1,3 @@
+ALTER TABLE quiz_daily_set
+        ADD COLUMN IF NOT EXISTS seed INT,
+        ADD COLUMN IF NOT EXISTS limit_count SMALLINT DEFAULT 10;

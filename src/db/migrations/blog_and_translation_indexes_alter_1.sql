@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS blog_slug_idx ON blog(slug);

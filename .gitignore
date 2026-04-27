@@ -1,0 +1,70 @@
+# Env y secretos
+.env
+.env.*
+
+# Node
+node_modules/
+dist/
+build/
+coverage/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# TypeScript
+*.tsbuildinfo
+
+# Uploads y archivos generados por usuarios/procesos
+uploads/**
+!uploads/.gitkeep
+archivos-cargado/**
+
+# Caches/modelos
+_models-cache/
+.models-cache/
+.cache/
+.cache/**
+.tmp/
+temp/
+tmp/
+
+# Python
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+.mypy_cache/
+.pytest_cache/
+
+# Puppeteer/Chromium
+.local-chromium/
+.chromium/
+**/puppeteer/.local-chromium/
+**/puppeteer/.cache/
+
+# Logs
+logs/
+*.log
+
+# IDE/OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Docker/otros
+start-app.sh
+promt-bot.txt
+
+
+# Archivos de Docker locales
+docker-compose.yaml
+Dockerfile.dev
+dist/
+dist/
+.models-cache/
+_models-cache/
+uploads/
+archivos-cargado/
+secrets/
+.env

@@ -1,0 +1,2 @@
+ALTER TABLE blog
+       ALTER COLUMN type SET DEFAULT 'post';

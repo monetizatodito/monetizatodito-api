@@ -1,0 +1,1 @@
+CREATE INDEX IF NOT EXISTS blog_trans_blogid_idx ON blog_translation(blog_id);
