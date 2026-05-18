@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { pool } from "../../db/db-config";
 
-const SITE = "https://mosanmultiverso.com";
+const SITE = "https://monetizatodito.com";
 
 export class SitemapARXmlControlador {
   async getSitemapArXml(_req: Request, res: Response) {
@@ -16,10 +16,10 @@ export class SitemapARXmlControlador {
         `${SITE}/ar/privacy-policy`,
         `${SITE}/ar/terms-and-conditions`,
         `${SITE}/ar/أدوات`, // herramisntas
-        `${SITE}/ar/تحويل-pdf-الى-word`, //pdf a word
+        `${SITE}/ar/pdf/تحويل-pdf-الى-word`, //pdf a word
         `${SITE}/ar/من-نحن`, //nosotros
         `${SITE}/ar/تحويل-jpg-الى-webp`, //jpg a webp
-        `${SITE}/ar/تحويل-word-الى-pdf`, //pdf a work
+        `${SITE}/ar/pdf/تحويل-word-الى-pdf`, //pdf a work
         `${SITE}/ar/حاسبة-مواد-الجبس-بورد`, // calculadora de gypsum
         `${SITE}/ar/bing-homepage-quiz`,
       ];

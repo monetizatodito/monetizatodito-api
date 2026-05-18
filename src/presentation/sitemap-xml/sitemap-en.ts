@@ -2,7 +2,7 @@
 import { Request, Response } from "express";
 import { pool } from "../../db/db-config";
 
-const SITE = "https://mosanmultiverso.com";
+const SITE = "https://monetizatodito.com";
 
 export class SitemapENXmlControlador {
   async getSitemapEnXml(_req: Request, res: Response) {
@@ -18,8 +18,8 @@ export class SitemapENXmlControlador {
         `${SITE}/en/privacy-policy`,
         `${SITE}/en/terms-and-conditions`,
         `${SITE}/en/tools`,
-        `${SITE}/en/pdf-to-word`,
-        `${SITE}/en/word-to-pdf`,
+        `${SITE}/en/pdf/pdf-to-word`,
+        `${SITE}/en/pdf/word-to-pdf`,
         `${SITE}/en/about`,
         `${SITE}/en/faq`,
         `${SITE}/en/gypsum-materials-calculator`,

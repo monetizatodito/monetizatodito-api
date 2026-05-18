@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { pool } from "../../db/db-config";
 
-const SITE = "https://mosanmultiverso.com";
+const SITE = "https://monetizatodito.com";
 
 export class SitemapPTXmlControlador {
   async getSitemapPtXml(_req: Request, res: Response) {
@@ -13,8 +13,8 @@ export class SitemapPTXmlControlador {
         `${SITE}/pt`,
         `${SITE}/pt/blog`,
         `${SITE}/pt/contato`,
-        `${SITE}/pt/pdf-para-word`,
-        `${SITE}/pt/word-para-pdf`,
+        `${SITE}/pt/pdf/pdf-para-word`,
+        `${SITE}/pt/pdf/word-para-pdf`,
         `${SITE}/pt/jpg-para-webp`,
         `${SITE}/pt/calculadora-materiais-drywall`,
         `${SITE}/pt/sobre-nos`,

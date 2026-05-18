@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { pool } from "../../db/db-config";
 
-const SITE = "https://mosanmultiverso.com";
+const SITE = "https://monetizatodito.com";
 
 export class SitemapDEXmlControlador {
   async getSitemapDeXml(_req: Request, res: Response) {
@@ -16,8 +16,8 @@ export class SitemapDEXmlControlador {
         `${SITE}/de/ueber-uns`, // nosotros
         `${SITE}/de/faq`, // preguntas frecuentes
         `${SITE}/de/werkzeuge`, // heramientas
-        `${SITE}/de/pdf-zu-word`, //pdf a word
-        `${SITE}/de/word-zu-pdf`, // word a pdf
+        `${SITE}/de/pdf/pdf-zu-word`, //pdf a word
+        `${SITE}/de/pdf/word-zu-pdf`, // word a pdf
         `${SITE}/de/jpg-zu-webp`, // jpg a webp
         `${SITE}/de/trockenbau-material-berechnen`, //calculadora de gypsun
         `${SITE}/de/bing-homepage-quiz`,

@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { pool } from "../../db/db-config";
 
-const SITE = "https://mosanmultiverso.com";
+const SITE = "https://monetizatodito.com";
 
 export class SitemapXmlControlador {
   async getSitemapXml(_req: Request, res: Response) {
@@ -37,16 +37,16 @@ export class SitemapXmlControlador {
         // herramientas
         "/contador-palabras",
         "/certificado-laboral-online",
-        "/firmar-pdf-online",
+        "/pdf/firmar-pdf",
         "/png-a-webp",
         "/jpg-a-webp",
         "/cortador-url",
-        "/pdf-a-word",
+        "/pdf/pdf-a-word",
         "/generar-password-segura",
         "/generar-citas",
-        "/unir-pdf",
-        "/comprimir-pdf",
-        "/pdf-a-texto",
+        "/pdf/unir-pdf",
+        "/pdf/comprimir-pdf",
+        "/pdf/pdf-a-texto",
         "/formatear-codigo",
         "/resolver-ecuaciones",
         "/calcular-promedio",
