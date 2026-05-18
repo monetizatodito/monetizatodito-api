@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { pool } from "../../db/db-config";
 
-const SITE = "https://mosanmultiverso.com";
+const SITE = "https://monetizatodito.com";
 
 export class RssFRXmlControlador {
   async getRssFrXml(_req: Request, res: Response) {
@@ -109,9 +109,9 @@ export class RssFRXmlControlador {
       let rss = `<?xml version="1.0" encoding="UTF-8"?>\n`;
       rss += `<rss version="2.0">\n`;
       rss += `  <channel>\n`;
-      rss += `    <title>Mosan Multiverso Français</title>\n`;
+      rss += `    <title>Monetiza Todito Français</title>\n`;
       rss += `    <link>${SITE}/fr</link>\n`;
-      rss += `    <description>Derniers articles et actualités de Mosan Multiverso</description>\n`;
+      rss += `    <description>Derniers articles et actualités de Monetiza Todito</description>\n`;
       rss += `    <language>fr-FR</language>\n`;
       rss += `    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>\n`;
 
@@ -134,7 +134,7 @@ export class RssFRXmlControlador {
         const rawDescription =
           descriptionText ||
           contentText.slice(0, 220) ||
-          "Lisez cet article sur Mosan Multiverso";
+          "Lisez cet article sur Monetiza Todito";
 
         const description = xmlEscape(rawDescription);
 

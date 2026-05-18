@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { pool } from "../../db/db-config";
 
-const SITE = "https://mosanmultiverso.com";
+const SITE = "https://monetizatodito.com";
 
 export class RssARXmlControlador {
   async getRssArXml(_req: Request, res: Response) {
@@ -113,7 +113,7 @@ export class RssARXmlControlador {
       rss += `  <channel>\n`;
       rss += `    <title>Mosan Multiverso Arabic</title>\n`;
       rss += `    <link>${SITE}/ar</link>\n`;
-      rss += `    <description>أحدث المقالات من Mosan Multiverso</description>\n`;
+      rss += `    <description>أحدث المقالات من Monetiza Todito</description>\n`;
       rss += `    <language>ar</language>\n`;
       rss += `    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>\n`;
 

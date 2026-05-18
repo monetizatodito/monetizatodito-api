@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { pool } from "../../db/db-config";
 
-const SITE = "https://mosanmultiverso.com";
+const SITE = "https://monetizatodito.com";
 
 export class RssPTXmlControlador {
   async getRssPtXml(_req: Request, res: Response) {
@@ -111,9 +111,9 @@ export class RssPTXmlControlador {
       let rss = `<?xml version="1.0" encoding="UTF-8"?>\n`;
       rss += `<rss version="2.0">\n`;
       rss += `  <channel>\n`;
-      rss += `    <title>Mosan Multiverso Português</title>\n`;
+      rss += `    <title>Monetiza Todito Português</title>\n`;
       rss += `    <link>${SITE}/pt</link>\n`;
-      rss += `    <description>Últimos artigos e notícias do Mosan Multiverso</description>\n`;
+      rss += `    <description>Últimos artigos e notícias do Monetiza Todito</description>\n`;
       rss += `    <language>pt-BR</language>\n`;
       rss += `    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>\n`;
 
@@ -136,7 +136,7 @@ export class RssPTXmlControlador {
         const rawDescription =
           descriptionText ||
           contentText.slice(0, 220) ||
-          "Leia este artigo no Mosan Multiverso";
+          "Leia este artigo no Monetiza Todito";
 
         const description = xmlEscape(rawDescription);
 
