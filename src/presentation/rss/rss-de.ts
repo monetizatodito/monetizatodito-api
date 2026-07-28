@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { pool } from "../../db/db-config";
 
-const SITE = "https://https://monetizatodito.com";
+const SITE = "https://lobitoisaias.com";
 
 export class RssDEXmlControlador {
   async getRssDeXml(_req: Request, res: Response) {
@@ -107,9 +107,9 @@ export class RssDEXmlControlador {
       let rss = `<?xml version="1.0" encoding="UTF-8"?>\n`;
       rss += `<rss version="2.0">\n`;
       rss += `  <channel>\n`;
-      rss += `    <title>Monetiza Todito Deutsch</title>\n`;
+      rss += `    <title>Lobito Isaias Deutsch</title>\n`;
       rss += `    <link>${SITE}/de</link>\n`;
-      rss += `    <description>Neueste Artikel und Nachrichten von Monetiza Todito</description>\n`;
+      rss += `    <description>Neueste Artikel und Nachrichten von Lobito Isaias</description>\n`;
       rss += `    <language>de-DE</language>\n`;
       rss += `    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>\n`;
 

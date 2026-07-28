@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { pool } from "../../db/db-config";
 
-const SITE = "https://mosanmultiverso.com";
+const SITE = "https://lobitoisaias.com";
 
 export class RssENXmlControlador {
   async getRssEnXml(_req: Request, res: Response) {
@@ -111,9 +111,9 @@ export class RssENXmlControlador {
       let rss = `<?xml version="1.0" encoding="UTF-8"?>\n`;
       rss += `<rss version="2.0">\n`;
       rss += `  <channel>\n`;
-      rss += `    <title>Mosan Multiverso English</title>\n`;
+      rss += `    <title>Lobito Isaias English</title>\n`;
       rss += `    <link>${SITE}/en</link>\n`;
-      rss += `    <description>Latest articles and news from Mosan Multiverso</description>\n`;
+      rss += `    <description>Latest articles and news from Lobito Isaias</description>\n`;
       rss += `    <language>en-US</language>\n`;
       rss += `    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>\n`;
 

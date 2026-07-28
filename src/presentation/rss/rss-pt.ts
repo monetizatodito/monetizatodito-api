@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { pool } from "../../db/db-config";
 
-const SITE = "https://monetizatodito.com";
+const SITE = "https://lobitoisaias.com";
 
 export class RssPTXmlControlador {
   async getRssPtXml(_req: Request, res: Response) {
@@ -111,9 +111,9 @@ export class RssPTXmlControlador {
       let rss = `<?xml version="1.0" encoding="UTF-8"?>\n`;
       rss += `<rss version="2.0">\n`;
       rss += `  <channel>\n`;
-      rss += `    <title>Monetiza Todito Português</title>\n`;
+      rss += `    <title>Lobito Isaias Português</title>\n`;
       rss += `    <link>${SITE}/pt</link>\n`;
-      rss += `    <description>Últimos artigos e notícias do Monetiza Todito</description>\n`;
+      rss += `    <description>Últimos artigos e notícias do Lobito Isaias</description>\n`;
       rss += `    <language>pt-BR</language>\n`;
       rss += `    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>\n`;
 
