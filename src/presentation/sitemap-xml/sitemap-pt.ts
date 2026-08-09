@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { pool } from "../../db/db-config";
 
-const SITE = "https://monetizatodito.com";
+const SITE = "https://lobitoisaias.com";
 
 export class SitemapPTXmlControlador {
   async getSitemapPtXml(_req: Request, res: Response) {

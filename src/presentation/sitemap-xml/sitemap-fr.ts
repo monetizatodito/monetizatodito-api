@@ -1,7 +1,7 @@
 import { Request, Response } from "express";
 import { pool } from "../../db/db-config";
 
-const SITE = "https://monetizatodito.com";
+const SITE = "https://lobitoisaias.com";
 
 export class SitemapFRXmlControlador {
   async getSitemapFrXml(_req: Request, res: Response) {
