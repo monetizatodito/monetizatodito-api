@@ -21,7 +21,7 @@ export class BlogRoutes {
     router.get(
       "/untranslated",
       [AuthMiddleware.validateJWT, ValidardRoll.tieneRoll("admin", "empresa")],
-      controller.getUntranslated
+      controller.getUntranslated,
     );
 
     // ---- CREAR / MODIFICAR ----
@@ -30,8 +30,9 @@ export class BlogRoutes {
     router.post(
       "/categoria",
       [AuthMiddleware.validateJWT],
-      controller.crearCategoria
+      controller.crearCategoria,
     );
+    router.get("/categorias", controller.getCategorias);
 
     router.put(
       "/:id",
@@ -39,7 +40,7 @@ export class BlogRoutes {
         AuthMiddleware.validateJWT,
         ValidardRoll.tieneRoll("admin", "cliente", "empresa"),
       ],
-      controller.putBlog
+      controller.putBlog,
     );
 
     // ---- ELIMINAR ----
@@ -49,13 +50,13 @@ export class BlogRoutes {
     router.post(
       "/translate/:slug",
       [AuthMiddleware.validateJWT, ValidardRoll.tieneRoll("admin", "empresa")],
-      controller.traducirPorSlug
+      controller.traducirPorSlug,
     );
 
     router.post(
       "/translate/batch",
       [AuthMiddleware.validateJWT, ValidardRoll.tieneRoll("admin", "empresa")],
-      controller.traducirBatch
+      controller.traducirBatch,
     );
 
     // ⚠️ RUTA GENÉRICA: SIEMPRE AL FINAL

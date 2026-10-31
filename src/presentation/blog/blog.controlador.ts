@@ -67,7 +67,7 @@ export class BlogControlador {
                   contenido: createBlogDto!.contenido,
                   palabras_claves: createBlogDto!.palabras_claves ?? null,
                 },
-                locales
+                locales,
               )
               .catch((err) => console.error("[translate-bg] error:", err));
           });
@@ -92,10 +92,10 @@ export class BlogControlador {
       typeof req.query.limit === "string" ? req.query.limit : undefined;
 
     const qLocale = String(
-      req.query.locale || req.headers["x-locale"] || "es"
+      req.query.locale || req.headers["x-locale"] || "es",
     ).toLowerCase();
     const locale: Locale = (ALLOWED_LOCALES as readonly string[]).includes(
-      qLocale
+      qLocale,
     )
       ? (qLocale as Locale)
       : "es";
@@ -183,13 +183,13 @@ export class BlogControlador {
         const prevContenido = ensureIdsAndHashes(
           typeof prevSnapshot?.contenido === "string"
             ? JSON.parse(prevSnapshot.contenido)
-            : (prevSnapshot?.contenido ?? { blocks: [] })
+            : (prevSnapshot?.contenido ?? { blocks: [] }),
         );
 
         const nextContenido = ensureIdsAndHashes(
           typeof updatedSnapshot?.contenido === "string"
             ? JSON.parse(updatedSnapshot.contenido)
-            : (updatedSnapshot?.contenido ?? { blocks: [] })
+            : (updatedSnapshot?.contenido ?? { blocks: [] }),
         );
 
         const changedBlockIds = diffBlocks(prevContenido, nextContenido);
@@ -215,7 +215,7 @@ export class BlogControlador {
                 palabras_claves: updatedSnapshot.palabras_claves ?? null,
               },
               locales,
-              { strategy: "changed-blocks", changedBlockIds }
+              { strategy: "changed-blocks", changedBlockIds },
             )
             .catch((e) => console.error("[translate-bg] fallo:", e));
 
@@ -333,5 +333,15 @@ export class BlogControlador {
       .listUntranslated(locale, page, limit, search)
       .then((r) => res.json(r))
       .catch((err) => this.handleError(err, res));
+  };
+
+  getCategorias = async (req: Request, res: Response) => {
+    try {
+      const resultado = await this.blogService.listarCategorias();
+
+      return res.status(200).json(resultado);
+    } catch (error) {
+      return this.handleError(error, res);
+    }
   };
 }

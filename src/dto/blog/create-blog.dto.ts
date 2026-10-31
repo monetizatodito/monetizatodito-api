@@ -19,7 +19,7 @@ export class CreateBlogDto {
     public locales?: string[],
     // 👇 NUEVO
     public youtubeUrls?: string[],
-    public type: "post" | "bio" = "post"
+    public type: "post" | "bio" = "post",
   ) {}
 
   static create(obj: { [key: string]: any }): [string?, CreateBlogDto?] {
@@ -48,6 +48,30 @@ export class CreateBlogDto {
     if (!titulo) return ["El título es obligatorio"];
     if (!contenido) return ["El contenido es obligatorio"];
 
+    // ======================================
+    // VALIDACIÓN DE CATEGORÍAS
+    // ======================================
+
+    if (categoriaIds !== undefined) {
+      if (!Array.isArray(categoriaIds)) {
+        return ["categoriaIds debe ser un arreglo"];
+      }
+
+      if (
+        categoriaIds.some(
+          (id: unknown) =>
+            typeof id !== "string" || !id.trim() || id.trim().length > 50,
+        )
+      ) {
+        return ["Los IDs de las categorías no son válidos"];
+      }
+    }
+
+    // Normalizar y eliminar IDs duplicados
+    const safeCategoriaIds: string[] | undefined = Array.isArray(categoriaIds)
+      ? [...new Set(categoriaIds.map((id: string) => id.trim()))]
+      : undefined;
+
     // Normalizar tipo: por defecto "post"
     let safeType: "post" | "bio" = "post";
     if (type === "bio") safeType = "bio";
@@ -72,7 +96,7 @@ export class CreateBlogDto {
         autor,
 
         descripcion,
-        categoriaIds,
+        safeCategoriaIds,
         palabras_claves,
         images,
         safeImagesAlt, // ✅ aquí
@@ -82,7 +106,7 @@ export class CreateBlogDto {
         !!autoTranslate, // asegura boolean
         Array.isArray(locales) ? locales : undefined,
         safeYoutubeUrls, // ✅ aquí
-        safeType
+        safeType,
       ),
     ];
   }

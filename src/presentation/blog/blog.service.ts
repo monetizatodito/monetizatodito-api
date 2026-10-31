@@ -196,6 +196,7 @@ export class BlogService {
     // === Tu lógica actual por idioma ===
     for (const loc of locales) {
       try {
+        await this.asegurarTraduccionesCategoriasBlog(blogId, loc);
         const tTitulo = await translateText(base.titulo, loc);
         const tDescripcion = await translateText(base.descripcion, loc);
         const tContenido = await translateContentJSON(
@@ -653,4 +654,60 @@ export class BlogService {
       meta,
     };
   }
+  public async listarCategorias() {
+    const categorias = await this.blogRepositorio.listarCategorias();
+
+    return { categorias };
+  }
+
+  public async asegurarTraduccionesCategoriasBlog(
+    blogId: string,
+    locale: TranslatableLocale,
+  ) {
+    const categorias = await this.blogRepositorio.getCategoriasDeBlog(blogId);
+
+    for (const categoria of categorias) {
+      const existente = await this.blogRepositorio.getCategoriaTranslation(
+        categoria.id,
+        locale,
+      );
+
+      // No traducir nuevamente una categoría existente.
+      if (existente) continue;
+
+      const nombreTraducido = await translateText(categoria.nombre, locale);
+
+      const descripcionTraducida = categoria.descripcion
+        ? await translateText(categoria.descripcion, locale)
+        : null;
+
+      const slugTraducido = crearSlugCategoria(nombreTraducido);
+
+      if (!slugTraducido) {
+        throw new Error(
+          `No se pudo generar el slug de ${categoria.nombre} para ${locale}`,
+        );
+      }
+
+      await this.blogRepositorio.guardarCategoriaTranslation({
+        categoriaId: categoria.id,
+        locale,
+        nombre: nombreTraducido,
+        slug: slugTraducido,
+        descripcion: descripcionTraducida,
+      });
+    }
+  }
+}
+
+function crearSlugCategoria(texto: string): string {
+  return texto
+    .normalize("NFKC")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 140)
+    .replace(/-+$/g, "");
 }

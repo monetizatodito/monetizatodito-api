@@ -43,7 +43,7 @@ export class BlogRepository {
     id: string,
     blog: BlogEntity,
     autor: any,
-    usuarioId: string
+    usuarioId: string,
   ): Promise<BlogEntity> {
     // Asegúrate de que esta función esté definida en otro lugar
     // normalizar type (por si viene undefined)
@@ -87,27 +87,54 @@ export class BlogRepository {
   }
 
   async crearCategoria(nombre: string, descripcion?: string) {
+    const nombreLimpio = nombre.trim();
+
+    const slug = nombreLimpio
+      .toLowerCase()
+      .normalize("NFD")
+      .replace(/[\u0300-\u036f]/g, "")
+      .replace(/[^\p{L}\p{N}]+/gu, "-")
+      .replace(/^-|-$/g, "")
+      .slice(0, 100)
+      .replace(/-$/g, "");
+
+    if (!nombreLimpio || !slug || nombreLimpio.length > 50) {
+      throw CustomError.badRequest("El nombre de la categoría no es válido.");
+    }
+
     const id = generarIdUnico();
 
     const query = `
-    INSERT INTO categoria(id, nombre, descripcion)
-    VALUES ($1, $2, $3)
+    INSERT INTO categoria (
+      id, nombre, slug, descripcion
+    )
+    VALUES ($1, $2, $3, $4)
     RETURNING *;
   `;
 
     try {
-      const result = await pool.query(query, [id, nombre, descripcion || null]);
+      const result = await pool.query(query, [
+        id,
+        nombreLimpio,
+        slug,
+        descripcion?.trim() || null,
+      ]);
+
       return result.rows[0];
-    } catch (err) {
-      throw CustomError.internalServerError(
-        `No se pudo crear la categoría: ${err}`
-      );
+    } catch (err: any) {
+      if (err?.code === "23505") {
+        throw CustomError.badRequest(
+          "Ya existe una categoría con ese nombre o slug.",
+        );
+      }
+
+      throw CustomError.internalServerError("No se pudo crear la categoría.");
     }
   }
 
   async asignarCategoriasABlog(
     blogId: string,
-    categoriaIds: string[]
+    categoriaIds: string[],
   ): Promise<void> {
     const query = `
     INSERT INTO blog_categoria("blogId", "categoriaId")
@@ -121,7 +148,7 @@ export class BlogRepository {
       await pool.query(query, values);
     } catch (err) {
       throw CustomError.internalServerError(
-        `No se pudieron asignar las categorías: ${err}`
+        `No se pudieron asignar las categorías: ${err}`,
       );
     }
   }
@@ -139,7 +166,7 @@ export class BlogRepository {
       return result.rows;
     } catch (err) {
       throw CustomError.internalServerError(
-        `Error al obtener las categorías del blog: ${err}`
+        `Error al obtener las categorías del blog: ${err}`,
       );
     }
   }
@@ -151,14 +178,14 @@ export class BlogRepository {
       await pool.query(query, [blogId]);
     } catch (err) {
       throw CustomError.internalServerError(
-        `No se pudieron eliminar las categorías del blog: ${err}`
+        `No se pudieron eliminar las categorías del blog: ${err}`,
       );
     }
   }
 
   async actualizarCategoriasDeBlog(
     blogId: string,
-    nuevasCategorias: string[]
+    nuevasCategorias: string[],
   ): Promise<void> {
     await this.eliminarCategoriasDeBlog(blogId);
     await this.asignarCategoriasABlog(blogId, nuevasCategorias);
@@ -167,7 +194,7 @@ export class BlogRepository {
   /** ¿Existe ya una traducción para (blog_id, locale)? */
   async existsTranslationByBlogAndLocale(
     blogId: string,
-    locale: string
+    locale: string,
   ): Promise<boolean> {
     const sql = `SELECT 1 FROM blog_translation WHERE blog_id = $1 AND locale = $2 LIMIT 1`;
     const { rows } = await pool.query(sql, [blogId, locale]);
@@ -175,7 +202,29 @@ export class BlogRepository {
   }
 
   getBlog(limit: number, offset: number) {
-    const query = `SELECT * FROM blog  WHERE type = 'post' AND activo = TRUE ORDER BY "createdAt" DESC LIMIT $1 OFFSET $2`;
+    const query = `
+  SELECT
+    b.*,
+
+    (
+      SELECT c.slug
+      FROM blog_categoria bc
+      INNER JOIN categoria c
+        ON c.id = bc."categoriaId"
+      WHERE bc."blogId" = b.id
+      ORDER BY c.id
+      LIMIT 1
+    ) AS categoria_slug
+
+  FROM blog b
+
+  WHERE b.type = 'post'
+    AND b.activo = TRUE
+
+  ORDER BY b."createdAt" DESC
+
+  LIMIT $1 OFFSET $2
+`;
 
     return pool
       .query(query, [limit, offset])
@@ -183,7 +232,7 @@ export class BlogRepository {
       .catch((err) => {
         console.error("[DB:getBlog] Error al listar blogs:", err);
         throw CustomError.internalServerError(
-          `no se pudo listar las caja: ${err}`
+          `no se pudo listar las caja: ${err}`,
         );
       });
   }
@@ -204,10 +253,10 @@ export class BlogRepository {
       .catch((err) => {
         console.error(
           "[DB:getBlogByAutor] Error al listar blogs por autor:",
-          err
+          err,
         );
         throw CustomError.internalServerError(
-          `No se pudo obtener los blogs del autor: ${err}`
+          `No se pudo obtener los blogs del autor: ${err}`,
         );
       });
   }
@@ -222,10 +271,10 @@ export class BlogRepository {
       .catch((err) => {
         console.error(
           "[DB:countByAutor] Error al contar blogs por autor:",
-          err
+          err,
         );
         throw CustomError.internalServerError(
-          "Error al contar blogs del autor"
+          "Error al contar blogs del autor",
         );
       });
   }
@@ -249,7 +298,7 @@ export class BlogRepository {
       .then((result) => result.rows[0])
       .catch((err) => {
         throw CustomError.internalServerError(
-          `no se ecuentre la apertura: ${err}`
+          `no se ecuentre la apertura: ${err}`,
         );
       });
   }
@@ -261,7 +310,7 @@ export class BlogRepository {
       .then((result) => result.rows[0])
       .catch((err) => {
         throw CustomError.internalServerError(
-          `no se ecuentre la apertura: ${err}`
+          `no se ecuentre la apertura: ${err}`,
         );
       });
   }
@@ -288,7 +337,7 @@ export class BlogRepository {
       values.push(
         typeof (blog as any).contenido === "string"
           ? (blog as any).contenido
-          : JSON.stringify((blog as any).contenido)
+          : JSON.stringify((blog as any).contenido),
       );
     }
 
@@ -515,7 +564,24 @@ export class BlogRepository {
       b."usuarioId",
       b."createdAt",
       b."updatedAt",
-      b.youtube_urls
+     b.youtube_urls,
+
+CASE
+  WHEN t.id IS NOT NULL THEN (
+    SELECT ct.slug
+    FROM blog_categoria bc
+
+    INNER JOIN categoria_translation ct
+      ON ct."categoriaId" = bc."categoriaId"
+      AND ct.locale = $3
+
+    WHERE bc."blogId" = b.id
+
+    ORDER BY bc."categoriaId"
+    LIMIT 1
+  )
+  ELSE NULL
+END AS categoria_slug
     FROM blog b
     LEFT JOIN blog_translation t
       ON t.blog_id = b.id
@@ -534,7 +600,7 @@ export class BlogRepository {
     locale: string,
     limit: number,
     offset: number,
-    search?: string
+    search?: string,
   ) {
     const params: any[] = [locale];
     let i = 2;
@@ -598,7 +664,7 @@ export class BlogRepository {
 
   async getBioByAutorAndLocale(
     nombre: string,
-    locale: string
+    locale: string,
   ): Promise<any | null> {
     if (locale === "es") {
       // Igual que tu getBioByAutor original
@@ -644,5 +710,141 @@ export class BlogRepository {
   `;
     const { rows } = await pool.query(sql, [nombre, locale]);
     return rows[0] || null;
+  }
+
+  async listarCategorias() {
+    const query = `
+    SELECT
+      id,
+      nombre,
+      slug,
+      descripcion,
+      "createdAt"
+    FROM categoria
+    ORDER BY nombre ASC;
+  `;
+
+    const { rows } = await pool.query(query);
+
+    return rows;
+  }
+
+  async getCategoriaTranslation(categoriaId: string, locale: string) {
+    const { rows } = await pool.query(
+      `
+    SELECT *
+    FROM categoria_translation
+    WHERE "categoriaId" = $1
+      AND locale = $2
+    LIMIT 1
+    `,
+      [categoriaId, locale],
+    );
+
+    return rows[0] ?? null;
+  }
+
+  async guardarCategoriaTranslation(data: {
+    categoriaId: string;
+    locale: string;
+    nombre: string;
+    slug: string;
+    descripcion: string | null;
+  }) {
+    const { rows } = await pool.query(
+      `
+    INSERT INTO categoria_translation (
+      "categoriaId",
+      locale,
+      nombre,
+      slug,
+      descripcion
+    )
+    VALUES ($1, $2, $3, $4, $5)
+
+    ON CONFLICT ("categoriaId", locale)
+    DO NOTHING
+
+    RETURNING *;
+    `,
+      [data.categoriaId, data.locale, data.nombre, data.slug, data.descripcion],
+    );
+
+    return (
+      rows[0] ?? this.getCategoriaTranslation(data.categoriaId, data.locale)
+    );
+  }
+
+  async getPostPorCategoriaYLocale(
+    categoriaSlug: string,
+    postSlug: string,
+    locale: string,
+  ) {
+    const sql = `
+    SELECT
+      b.id,
+
+      COALESCE(bt.slug, b.slug) AS slug,
+      COALESCE(bt.titulo, b.titulo) AS titulo,
+      COALESCE(bt.descripcion, b.descripcion) AS descripcion,
+      COALESCE(bt.contenido, b.contenido) AS contenido,
+
+      b.images,
+      COALESCE(bt.images_alt, b.images_alt) AS images_alt,
+      b.autor,
+      b."createdAt",
+      b.youtube_urls,
+
+      c.id AS categoria_id,
+
+      CASE
+        WHEN $3 = 'es' THEN c.nombre
+        ELSE ct.nombre
+      END AS categoria_nombre,
+
+      CASE
+        WHEN $3 = 'es' THEN c.slug
+        ELSE ct.slug
+      END AS categoria_slug
+
+    FROM blog b
+
+    INNER JOIN blog_categoria bc
+      ON bc."blogId" = b.id
+
+    INNER JOIN categoria c
+      ON c.id = bc."categoriaId"
+
+    LEFT JOIN categoria_translation ct
+      ON ct."categoriaId" = c.id
+      AND ct.locale = $3
+
+    LEFT JOIN blog_translation bt
+      ON bt.blog_id = b.id
+      AND bt.locale = $3
+
+    WHERE b.activo = TRUE
+      AND b.type = 'post'
+
+      AND (
+        CASE
+          WHEN $3 = 'es' THEN c.slug
+          ELSE ct.slug
+        END
+      ) = $1
+
+      AND (
+        CASE
+          WHEN $3 = 'es' THEN b.slug
+          ELSE bt.slug
+        END
+      ) = $2
+
+    LIMIT 1;
+  `;
+
+    const { rows } = await pool.query(sql, [categoriaSlug, postSlug, locale]);
+
+    return rows[0] ?? null;
   }
 }

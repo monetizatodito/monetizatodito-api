@@ -989,4 +989,33 @@ export const tables = [
   `,
     alterQueries: [],
   },
+
+  {
+    name: "categoria_translation",
+    createQuery: `
+    CREATE TABLE IF NOT EXISTS categoria_translation (
+      id BIGSERIAL PRIMARY KEY,
+
+      "categoriaId" VARCHAR(50) NOT NULL
+        REFERENCES categoria(id) ON DELETE CASCADE,
+
+      locale VARCHAR(5) NOT NULL
+        CHECK (locale IN ('en', 'pt', 'fr', 'de', 'ar')),
+
+      nombre VARCHAR(120) NOT NULL,
+      slug VARCHAR(140) NOT NULL,
+      descripcion TEXT,
+
+      "createdAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+      "updatedAt" TIMESTAMPTZ DEFAULT CURRENT_TIMESTAMP,
+
+      UNIQUE ("categoriaId", locale),
+      UNIQUE (locale, slug)
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_categoria_translation_lookup
+      ON categoria_translation ("categoriaId", locale);
+  `,
+    alterQueries: [],
+  },
 ];

@@ -39,7 +39,7 @@ async function bumpUniqSimple(
   sql: string,
   paramsBuilder: (slug: string) => any[],
   base: string,
-  maxLen = 200
+  maxLen = 200,
 ): Promise<string> {
   let slug = base || "entrada";
   let i = 1;
@@ -72,7 +72,7 @@ export async function generarSlugUnico(slugUrl: string): Promise<string> {
     "SELECT 1 FROM blog WHERE slug = $1",
     (s) => [s],
     base,
-    200
+    200,
   );
 }
 
@@ -89,14 +89,14 @@ export async function generarSlugUnico(slugUrl: string): Promise<string> {
  */
 export async function generarSlugI18nUnico(
   locale: string,
-  textOrSlug: string
+  textOrSlug: string,
 ): Promise<string> {
   const base = slugNativo(textOrSlug || "entrada").slice(0, 200);
   return bumpUniqSimple(
     "SELECT 1 FROM blog_translation WHERE locale = $1 AND slug = $2",
     (s) => [locale, s],
     base,
-    200
+    200,
   );
 }
 
@@ -104,10 +104,10 @@ export async function generarSlugI18nUnico(
 
 export async function generarSlugUnicoPorIdioma(
   repo: BlogRepository,
-  titulo: string,
-  locale: "en" | "pt" | "fr" | "de" | "ar"
+  slug: string,
+  locale: "en" | "pt" | "fr" | "de" | "ar",
 ): Promise<string> {
-  const base = makeSlugFromTitle(titulo, locale);
+  const base = makeSlugFromTitle(slug, locale);
   let candidate = base;
   let i = 2;
   while (await repo.existsTranslationSlug(locale, candidate)) {
