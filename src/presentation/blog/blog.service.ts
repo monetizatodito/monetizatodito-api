@@ -698,6 +698,9 @@ export class BlogService {
       });
     }
   }
+  public async getCategoriaSlugsDeBlog(blogId: string) {
+    return this.blogRepositorio.getCategoriaSlugsDeBlog(blogId);
+  }
 }
 
 function crearSlugCategoria(texto: string): string {

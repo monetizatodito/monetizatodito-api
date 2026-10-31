@@ -155,7 +155,24 @@ export class BlogControlador {
     try {
       const data = await this.blogService.getBlogBySlugWithLocale(slug, locale);
       res.set("Vary", "x-locale, Accept-Language");
-      if (!data?.blog) return res.status(404).json({ error: "No encontrado" });
+      if (!data?.blog) {
+        return res.status(404).json({
+          error: "No encontrado",
+        });
+      }
+
+      const categoriaSlugsByLocale =
+        await this.blogService.getCategoriaSlugsDeBlog(data.blog.id);
+
+      const categoriaSlug = categoriaSlugsByLocale?.[locale] ?? null;
+
+      return res.json({
+        ...data,
+
+        categoriaSlug,
+
+        categoriaSlugsByLocale: categoriaSlugsByLocale ?? {},
+      });
       return res.json(data);
     } catch (err) {
       return this.handleError(err, res);

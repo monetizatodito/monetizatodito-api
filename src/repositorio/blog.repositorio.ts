@@ -847,4 +847,48 @@ END AS categoria_slug
 
     return rows[0] ?? null;
   }
+
+  async getCategoriaSlugsDeBlog(blogId: string) {
+    const sql = `
+    SELECT
+      c.id,
+      c.slug AS slug_es,
+
+      COALESCE(
+        jsonb_object_agg(ct.locale, ct.slug)
+        FILTER (
+          WHERE ct.locale IS NOT NULL
+            AND ct.slug IS NOT NULL
+        ),
+        '{}'::jsonb
+      ) AS traducciones
+
+    FROM categoria c
+
+    INNER JOIN blog_categoria bc
+      ON bc."categoriaId" = c.id
+
+    LEFT JOIN categoria_translation ct
+      ON ct."categoriaId" = c.id
+
+    WHERE bc."blogId" = $1
+
+    GROUP BY c.id, c.slug
+
+    ORDER BY c.id ASC
+
+    LIMIT 1
+  `;
+
+    const { rows } = await pool.query(sql, [blogId]);
+
+    if (!rows.length) return null;
+
+    const categoria = rows[0];
+
+    return {
+      es: categoria.slug_es,
+      ...categoria.traducciones,
+    };
+  }
 }
