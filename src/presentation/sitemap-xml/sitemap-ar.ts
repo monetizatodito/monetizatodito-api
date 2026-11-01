@@ -2,88 +2,287 @@ import { Request, Response } from "express";
 import { pool } from "../../db/db-config";
 
 const SITE = "https://lobitoisaias.com";
+const LOCALE = "ar";
+
+interface ArticuloArSitemap {
+  ar_slug: string;
+  categoria_ar_slug: string | null;
+  images: string | null;
+  updated_at: string | Date | null;
+}
+
+interface CategoriaArSitemap {
+  slug: string;
+  updated_at: string | Date | null;
+}
+
+// ============================================
+// ESCAPAR CARACTERES XML
+// ============================================
+
+function xmlEscape(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+// ============================================
+// FECHAS REALES DE MODIFICACIÓN
+// ============================================
+
+function formatLastmod(value: string | Date | null | undefined): string | null {
+  if (!value) return null;
+
+  const date = new Date(value);
+
+  if (Number.isNaN(date.getTime())) {
+    return null;
+  }
+
+  return date.toISOString().slice(0, 10);
+}
+
+// ============================================
+// CODIFICAR SLUGS UNICODE
+// SOPORTA CARACTERES ÁRABES
+// ============================================
+
+function encodeSlug(slug: string): string {
+  return encodeURIComponent(slug.normalize("NFC"));
+}
 
 export class SitemapARXmlControlador {
   async getSitemapArXml(_req: Request, res: Response) {
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      // ========================================
+      // 1. RUTAS ESTÁTICAS ÁRABES
+      // CONSERVAMOS LAS EXISTENTES
+      // ========================================
 
       const staticRoutesAr = [
         `${SITE}/ar`,
         `${SITE}/ar/blog`,
         `${SITE}/ar/contact`,
-        `${SITE}/ar/الأسئلة-الشائعة`, //contacto
+        `${SITE}/ar/الأسئلة-الشائعة`,
         `${SITE}/ar/privacy-policy`,
         `${SITE}/ar/terms-and-conditions`,
-        `${SITE}/ar/أدوات`, // herramisntas
-        `${SITE}/ar/pdf/تحويل-pdf-الى-word`, //pdf a word
-        `${SITE}/ar/من-نحن`, //nosotros
-        `${SITE}/ar/تحويل-jpg-الى-webp`, //jpg a webp
-        `${SITE}/ar/pdf/تحويل-word-الى-pdf`, //pdf a work
-        `${SITE}/ar/حاسبة-مواد-الجبس-بورد`, // calculadora de gypsum
+        `${SITE}/ar/أدوات`,
+        `${SITE}/ar/pdf/تحويل-pdf-الى-word`,
+        `${SITE}/ar/من-نحن`,
+        `${SITE}/ar/تحويل-jpg-الى-webp`,
+        `${SITE}/ar/pdf/تحويل-word-الى-pdf`,
+        `${SITE}/ar/حاسبة-مواد-الجبس-بورد`,
         `${SITE}/ar/bing-homepage-quiz`,
       ];
 
-      const { rows } = await pool.query<{
-        images: string | null;
-        updated_at: string | Date | null;
-        ar_slug: string | null;
-      }>(`
-        SELECT
-          b.images,
-          b."updatedAt" AS updated_at,
-          t.slug        AS ar_slug
-        FROM blog b
-        JOIN blog_translation t
-          ON t.blog_id = b.id
-         AND t.locale  = 'ar'
-        WHERE b.activo = TRUE AND t.slug IS NOT NULL AND t.slug <> ''
-        ORDER BY b."updatedAt" DESC
-      `);
+      // ========================================
+      // 2. CATEGORÍAS TRADUCIDAS AL ÁRABE
+      // ========================================
 
-      const xmlEscape = (s: string) =>
-        s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      const { rows: categorias } = await pool.query<CategoriaArSitemap>(`
+          SELECT
+            ct.slug,
+            MAX(b."updatedAt") AS updated_at
 
-      let xml = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-      xml += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"\n`;
-      xml += `        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n`;
+          FROM categoria c
 
-      for (const loc of staticRoutesAr) {
-        xml += `  <url>\n`;
-        xml += `    <loc>${xmlEscape(loc)}</loc>\n`;
-        xml += `    <lastmod>${today}</lastmod>\n`;
-        xml += `  </url>\n`;
-      }
+          INNER JOIN categoria_translation ct
+            ON ct."categoriaId" = c.id
+           AND ct.locale = 'ar'
 
-      for (const row of rows) {
-        const slug = row.ar_slug;
-        if (!slug) continue;
+          LEFT JOIN blog_categoria bc
+            ON bc."categoriaId" = c.id
 
-        const url = `${SITE}/ar/blog/${encodeURIComponent(slug)}`;
-        const lastmod = row.updated_at
-          ? new Date(row.updated_at).toISOString().slice(0, 10)
-          : today;
+          LEFT JOIN blog b
+            ON b.id = bc."blogId"
+           AND b.activo = TRUE
 
-        xml += `  <url>\n`;
-        xml += `    <loc>${xmlEscape(url)}</loc>\n`;
-        xml += `    <lastmod>${lastmod}</lastmod>\n`;
+          WHERE NULLIF(TRIM(ct.slug), '') IS NOT NULL
 
-        if (row.images) {
-          const img = `${SITE}/cargar-archivo/blog/${encodeURIComponent(row.images)}`;
-          xml += `    <image:image>\n`;
-          xml += `      <image:loc>${xmlEscape(img)}</image:loc>\n`;
-          xml += `    </image:image>\n`;
+          GROUP BY c.id, ct.slug
+
+          ORDER BY ct.slug ASC
+        `);
+
+      // ========================================
+      // 3. ARTÍCULOS ACTIVOS TRADUCIDOS AL ÁRABE
+      // CON SU CATEGORÍA ÁRABE
+      // ========================================
+
+      const { rows: articulos } = await pool.query<ArticuloArSitemap>(`
+          SELECT
+            t.slug AS ar_slug,
+            b.images,
+            b."updatedAt" AS updated_at,
+            cat.slug AS categoria_ar_slug
+
+          FROM blog b
+
+          INNER JOIN blog_translation t
+            ON t.blog_id = b.id
+           AND t.locale = 'ar'
+
+          LEFT JOIN LATERAL (
+            SELECT
+              ct.slug
+
+            FROM blog_categoria bc
+
+            INNER JOIN categoria c
+              ON c.id = bc."categoriaId"
+
+            INNER JOIN categoria_translation ct
+              ON ct."categoriaId" = c.id
+             AND ct.locale = 'ar'
+
+            WHERE bc."blogId" = b.id
+              AND NULLIF(TRIM(ct.slug), '') IS NOT NULL
+
+            ORDER BY c.slug ASC
+
+            LIMIT 1
+          ) cat ON TRUE
+
+          WHERE b.activo = TRUE
+            AND NULLIF(TRIM(t.slug), '') IS NOT NULL
+
+          ORDER BY b."updatedAt" DESC
+        `);
+
+      // ========================================
+      // 4. CONSTRUIR EL XML
+      // ========================================
+
+      const urlsAgregadas = new Set<string>();
+
+      const xml: string[] = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">',
+      ];
+
+      // ========================================
+      // 5. FUNCIÓN PARA AGREGAR URL
+      // ========================================
+
+      function agregarUrl(
+        url: string,
+        fecha?: string | Date | null,
+        imagen?: string | null,
+      ): void {
+        if (urlsAgregadas.has(url)) {
+          return;
         }
 
-        xml += `  </url>\n`;
+        urlsAgregadas.add(url);
+
+        xml.push("  <url>");
+
+        xml.push(`    <loc>${xmlEscape(url)}</loc>`);
+
+        const lastmod = formatLastmod(fecha);
+
+        if (lastmod) {
+          xml.push(`    <lastmod>${lastmod}</lastmod>`);
+        }
+
+        if (imagen) {
+          xml.push("    <image:image>");
+
+          xml.push(`      <image:loc>${xmlEscape(imagen)}</image:loc>`);
+
+          xml.push("    </image:image>");
+        }
+
+        xml.push("  </url>");
       }
 
-      xml += `</urlset>\n`;
+      // ========================================
+      // 6. AGREGAR RUTAS ESTÁTICAS
+      // ========================================
+
+      for (const url of staticRoutesAr) {
+        agregarUrl(url);
+      }
+
+      // ========================================
+      // 7. AGREGAR CATEGORÍAS ÁRABES
+      //
+      // /ar/تسويق
+      // /ar/تمويل
+      // ========================================
+
+      for (const categoria of categorias) {
+        const slug = categoria.slug?.trim();
+
+        if (!slug) continue;
+
+        const url = `${SITE}/${LOCALE}/${encodeSlug(slug)}`;
+
+        agregarUrl(url, categoria.updated_at);
+      }
+
+      // ========================================
+      // 8. AGREGAR ARTÍCULOS ÁRABES
+      //
+      // CON CATEGORÍA:
+      // /ar/تسويق/slug-arabe
+      //
+      // SIN CATEGORÍA TRADUCIDA:
+      // /ar/blog/slug-arabe
+      // ========================================
+
+      for (const articulo of articulos) {
+        const slug = articulo.ar_slug?.trim();
+
+        if (!slug) continue;
+
+        const categoriaSlug = articulo.categoria_ar_slug?.trim();
+
+        let url: string;
+
+        if (categoriaSlug) {
+          url =
+            `${SITE}/${LOCALE}` +
+            `/${encodeSlug(categoriaSlug)}` +
+            `/${encodeSlug(slug)}`;
+        } else {
+          url = `${SITE}/${LOCALE}/blog` + `/${encodeSlug(slug)}`;
+        }
+
+        // ======================================
+        // IMAGEN DEL ARTÍCULO
+        // ======================================
+
+        const nombreImagen = articulo.images?.trim();
+
+        const imagen = nombreImagen
+          ? `${SITE}/cargar-archivo/blog/${encodeURIComponent(nombreImagen)}`
+          : null;
+
+        agregarUrl(url, articulo.updated_at, imagen);
+      }
+
+      // ========================================
+      // 9. CERRAR XML
+      // ========================================
+
+      xml.push("</urlset>");
+
+      const sitemap = xml.join("\n");
+
+      // ========================================
+      // 10. RESPONDER AL NAVEGADOR
+      // ========================================
 
       res.setHeader("Content-Type", "application/xml; charset=UTF-8");
-      res.status(200).send(xml);
-    } catch (err) {
-      console.error("Error generando sitemap AR:", err);
+
+      res.status(200).send(sitemap);
+    } catch (error) {
+      console.error("Error generando sitemap AR:", error);
+
       res.status(500).send("Error generando sitemap AR");
     }
   }

@@ -1,172 +1,397 @@
 import { Request, Response } from "express";
 import { pool } from "../../db/db-config";
 
+// ============================================
+// CONFIGURACIÓN RSS FRANCÉS
+// ============================================
+
 const SITE = "https://lobitoisaias.com";
+const LOCALE = "fr";
+const BLOG_FR = "/fr/blog";
+const MAX_ARTICULOS = 30;
 
-export class RssFRXmlControlador {
-  async getRssFrXml(_req: Request, res: Response) {
-    try {
-      const { rows } = await pool.query<{
-        images: string | null;
-        updated_at: string | Date | null;
-        created_at: string | Date | null;
-        fr_slug: string | null;
-        fr_title: unknown;
-        fr_description: unknown;
-        fr_content: unknown;
-      }>(`
-        SELECT
-          b.images,
-          b."updatedAt" AS updated_at,
-          b."createdAt" AS created_at,
-          t.slug AS fr_slug,
-          t.titulo AS fr_title,
-          t.descripcion AS fr_description,
-          t.contenido AS fr_content
-        FROM blog b
-        JOIN blog_translation t
-          ON t.blog_id = b.id
-         AND t.locale = 'fr'
-        WHERE b.activo = TRUE
-          AND t.slug IS NOT NULL
-          AND t.slug <> ''
-        ORDER BY b."updatedAt" DESC
-        LIMIT 30
-      `);
+// ============================================
+// TIPOS
+// ============================================
 
-      const xmlEscape = (value: unknown): string => {
-        const s =
-          typeof value === "string"
-            ? value
-            : value == null
-              ? ""
-              : String(value);
+interface ArticuloRssFr {
+  fr_slug: string | null;
+  fr_title: unknown;
+  fr_description: unknown;
+  fr_content: unknown;
+  categoria_fr_slug: string | null;
+  categoria_fr_nombre: string | null;
+  images: string | null;
+  updated_at: string | Date | null;
+  created_at: string | Date | null;
+}
 
-        return s
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;")
-          .replace(/'/g, "&apos;");
-      };
+// ============================================
+// PROTEGER EL XML
+// ============================================
 
-      const toPlainText = (value: unknown): string => {
-        if (value == null) return "";
+function xmlEscape(value: unknown): string {
+  const texto =
+    typeof value === "string" ? value : value == null ? "" : String(value);
 
-        if (typeof value === "string") return value;
+  return texto
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
 
-        if (typeof value === "number" || typeof value === "boolean") {
-          return String(value);
+// ============================================
+// CONVERTIR CONTENIDO A TEXTO
+// ============================================
+
+function toPlainText(value: unknown): string {
+  if (value == null) return "";
+
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (item == null) return "";
+
+        if (typeof item === "string") {
+          return item;
         }
 
-        if (Array.isArray(value)) {
-          return value
-            .map((item) => {
-              if (typeof item === "string") return item;
-              if (item == null) return "";
-              if (typeof item === "object") {
-                try {
-                  return JSON.stringify(item);
-                } catch {
-                  return "";
-                }
-              }
-              return String(item);
-            })
-            .join(" ");
-        }
-
-        if (typeof value === "object") {
+        if (typeof item === "object") {
           try {
-            return JSON.stringify(value);
+            return JSON.stringify(item);
           } catch {
             return "";
           }
         }
 
-        return String(value);
-      };
+        return String(item);
+      })
+      .join(" ");
+  }
 
-      const stripHtml = (value: unknown): string => {
-        return toPlainText(value)
-          .replace(/<[^>]*>/g, " ")
-          .replace(/\s+/g, " ")
-          .trim();
-      };
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return "";
+    }
+  }
 
-      const buildImageUrl = (value: string): string => {
-        const img = value.trim();
+  return String(value);
+}
 
-        if (!img) return "";
+// ============================================
+// ELIMINAR ETIQUETAS HTML
+// ============================================
 
-        if (img.startsWith("http://") || img.startsWith("https://")) {
-          return img;
-        }
+function stripHtml(value: unknown): string {
+  return toPlainText(value)
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-        return `${SITE}/cargar-archivo/blog/${encodeURIComponent(img)}`;
-      };
+// ============================================
+// CODIFICACIÓN UNICODE
+// SOPORTA é, è, ê, à, ù, ç, ETC.
+// ============================================
 
-      let rss = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-      rss += `<rss version="2.0">\n`;
-      rss += `  <channel>\n`;
-      rss += `    <title>Lobito Isaias Français</title>\n`;
-      rss += `    <link>${SITE}/fr</link>\n`;
-      rss += `    <description>Derniers articles et actualités de Lobito Isaias</description>\n`;
-      rss += `    <language>fr-FR</language>\n`;
-      rss += `    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>\n`;
+function encodeSlug(value: string): string {
+  return encodeURIComponent(value.trim().normalize("NFC"));
+}
 
-      for (const row of rows) {
-        const slug = typeof row.fr_slug === "string" ? row.fr_slug.trim() : "";
+// ============================================
+// CONSTRUIR URL DE IMAGEN
+// ============================================
+
+function buildImageUrl(value: string | null): string | null {
+  if (!value?.trim()) return null;
+
+  const imagen = value.trim();
+
+  // Conservar URL externas.
+  if (/^https?:\/\//i.test(imagen)) {
+    return imagen;
+  }
+
+  // Conservar ruta original de imágenes.
+  return `${SITE}/cargar-archivo/blog/` + encodeURIComponent(imagen);
+}
+
+// ============================================
+// IDENTIFICAR FORMATO DE IMAGEN
+// ============================================
+
+function obtenerMimeImagen(url: string): string | null {
+  let pathname: string;
+
+  try {
+    pathname = new URL(url).pathname.toLowerCase();
+  } catch {
+    pathname = url.split("?")[0].toLowerCase();
+  }
+
+  if (pathname.endsWith(".jpg")) return "image/jpeg";
+  if (pathname.endsWith(".jpeg")) return "image/jpeg";
+  if (pathname.endsWith(".png")) return "image/png";
+  if (pathname.endsWith(".webp")) return "image/webp";
+  if (pathname.endsWith(".avif")) return "image/avif";
+  if (pathname.endsWith(".gif")) return "image/gif";
+
+  return null;
+}
+
+// ============================================
+// FECHAS RSS VÁLIDAS
+// ============================================
+
+function formatRssDate(
+  updatedAt: string | Date | null,
+  createdAt: string | Date | null,
+): string | null {
+  for (const valor of [updatedAt, createdAt]) {
+    if (!valor) continue;
+
+    const fecha = new Date(valor);
+
+    if (!Number.isNaN(fecha.getTime())) {
+      return fecha.toUTCString();
+    }
+  }
+
+  return null;
+}
+
+// ============================================
+// CONTROLADOR RSS FRANCÉS
+// ============================================
+
+export class RssFRXmlControlador {
+  async getRssFrXml(_req: Request, res: Response) {
+    try {
+      // ======================================
+      // 1. CONSULTAR ARTÍCULOS FRANCESES
+      // CON SUS CATEGORÍAS TRADUCIDAS
+      // ======================================
+
+      const { rows: articulos } = await pool.query<ArticuloRssFr>(
+        `
+          SELECT
+            b.images,
+            b."updatedAt" AS updated_at,
+            b."createdAt" AS created_at,
+
+            t.slug AS fr_slug,
+            t.titulo AS fr_title,
+            t.descripcion AS fr_description,
+            t.contenido AS fr_content,
+
+            cat.slug AS categoria_fr_slug,
+            cat.nombre AS categoria_fr_nombre
+
+          FROM blog b
+
+          INNER JOIN blog_translation t
+            ON t.blog_id = b.id
+           AND t.locale = $1
+
+          LEFT JOIN LATERAL (
+            SELECT
+              ct.slug,
+              ct.nombre
+
+            FROM blog_categoria bc
+
+            INNER JOIN categoria c
+              ON c.id = bc."categoriaId"
+
+            INNER JOIN categoria_translation ct
+              ON ct."categoriaId" = c.id
+             AND ct.locale = $1
+
+            WHERE bc."blogId" = b.id
+              AND NULLIF(TRIM(ct.slug), '') IS NOT NULL
+
+            ORDER BY c.slug ASC
+
+            LIMIT 1
+          ) cat ON TRUE
+
+          WHERE b.activo = TRUE
+            AND NULLIF(TRIM(t.slug), '') IS NOT NULL
+
+          ORDER BY
+            b."updatedAt" DESC NULLS LAST,
+            b."createdAt" DESC NULLS LAST
+
+          LIMIT $2
+          `,
+        [LOCALE, MAX_ARTICULOS],
+      );
+
+      // ======================================
+      // 2. CONSTRUIR RSS 2.0
+      // ======================================
+
+      const rss: string[] = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/">',
+        "  <channel>",
+        "    <title>Lobito Isaias Français</title>",
+        `    <link>${SITE}/fr</link>`,
+        "    <description>Derniers articles, actualités, tutoriels et guides de Lobito Isaias</description>",
+        "    <language>fr-FR</language>",
+        `    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>`,
+      ];
+
+      // ======================================
+      // 3. RECORRER ARTÍCULOS TRADUCIDOS
+      // ======================================
+
+      for (const articulo of articulos) {
+        const slug =
+          typeof articulo.fr_slug === "string" ? articulo.fr_slug.trim() : "";
+
         if (!slug) continue;
 
-        const link = `${SITE}/fr/blog/${encodeURIComponent(slug)}`;
+        const categoriaSlug = articulo.categoria_fr_slug?.trim() || "";
 
-        const titleText = stripHtml(row.fr_title) || "Sans titre";
-        const title = xmlEscape(titleText);
+        // ====================================
+        // 4. URL PÚBLICA DEL ARTÍCULO
+        //
+        // CON CATEGORÍA:
+        // /fr/commercialisation/slug
+        //
+        // SIN CATEGORÍA:
+        // /fr/blog/slug
+        // ====================================
 
-        const descriptionText =
-          typeof row.fr_description === "string"
-            ? row.fr_description.trim()
-            : stripHtml(row.fr_description);
+        const link = categoriaSlug
+          ? `${SITE}/${LOCALE}/` +
+            `${encodeSlug(categoriaSlug)}/` +
+            encodeSlug(slug)
+          : `${SITE}${BLOG_FR}/` + encodeSlug(slug);
 
-        const contentText = stripHtml(row.fr_content);
+        // ====================================
+        // 5. GUID HISTÓRICO
+        //
+        // CONSERVAR EL IDENTIFICADOR
+        // QUE USABA EL RSS ANTERIOR
+        // PARA EVITAR DUPLICADOS
+        // AL CAMBIAR LA CATEGORÍA.
+        // ====================================
 
-        const rawDescription =
-          descriptionText ||
-          contentText.slice(0, 220) ||
-          "Lisez cet article sur Monetiza Todito";
+        const guid = `${SITE}${BLOG_FR}/${encodeSlug(slug)}`;
 
-        const description = xmlEscape(rawDescription);
+        // ====================================
+        // 6. TÍTULO EN FRANCÉS
+        // ====================================
 
-        const pubDate = new Date(
-          row.updated_at || row.created_at || Date.now(),
-        ).toUTCString();
+        const titulo = stripHtml(articulo.fr_title) || "Sans titre";
 
-        rss += `    <item>\n`;
-        rss += `      <title>${title}</title>\n`;
-        rss += `      <link>${xmlEscape(link)}</link>\n`;
-        rss += `      <guid isPermaLink="true">${xmlEscape(link)}</guid>\n`;
-        rss += `      <pubDate>${pubDate}</pubDate>\n`;
-        rss += `      <description>${description}</description>\n`;
+        // ====================================
+        // 7. DESCRIPCIÓN FRANCESA
+        // ====================================
 
-        if (row.images && typeof row.images === "string" && row.images.trim()) {
-          const imageUrl = buildImageUrl(row.images);
+        const descripcion = stripHtml(articulo.fr_description);
 
-          if (imageUrl) {
-            rss += `      <enclosure url="${xmlEscape(imageUrl)}" type="image/jpeg" />\n`;
-          }
+        const contenido = stripHtml(articulo.fr_content);
+
+        const textoDescripcion =
+          descripcion ||
+          contenido.slice(0, 220) ||
+          "Lisez cet article sur Lobito Isaias";
+
+        // ====================================
+        // 8. FECHA DEL ARTÍCULO
+        // ====================================
+
+        const pubDate = formatRssDate(articulo.updated_at, articulo.created_at);
+
+        // ====================================
+        // 9. GENERAR ITEM RSS
+        // ====================================
+
+        rss.push("    <item>");
+
+        rss.push(`      <title>${xmlEscape(titulo)}</title>`);
+
+        rss.push(`      <link>${xmlEscape(link)}</link>`);
+
+        rss.push(`      <guid isPermaLink="false">${xmlEscape(guid)}</guid>`);
+
+        if (pubDate) {
+          rss.push(`      <pubDate>${xmlEscape(pubDate)}</pubDate>`);
         }
 
-        rss += `    </item>\n`;
+        rss.push(
+          `      <description>${xmlEscape(textoDescripcion)}</description>`,
+        );
+
+        // ====================================
+        // 10. CATEGORÍA EN FRANCÉS
+        //
+        // Commercialisation
+        // Finance
+        //
+        // NOMBRES REALES DE POSTGRESQL
+        // ====================================
+
+        const nombreCategoria = articulo.categoria_fr_nombre?.trim();
+
+        if (categoriaSlug && nombreCategoria) {
+          rss.push(`      <category>${xmlEscape(nombreCategoria)}</category>`);
+        }
+
+        // ====================================
+        // 11. IMAGEN ORIGINAL DEL ARTÍCULO
+        // ====================================
+
+        const imagen = buildImageUrl(articulo.images);
+
+        if (imagen) {
+          const mime = obtenerMimeImagen(imagen);
+
+          const atributoMime = mime ? ` type="${mime}"` : "";
+
+          rss.push(
+            `      <media:content url="${xmlEscape(imagen)}" medium="image"${atributoMime} />`,
+          );
+        }
+
+        rss.push("    </item>");
       }
 
-      rss += `  </channel>\n`;
-      rss += `</rss>`;
+      // ======================================
+      // 12. CERRAR RSS
+      // ======================================
+
+      rss.push("  </channel>");
+      rss.push("</rss>");
+
+      const xml = rss.join("\n");
+
+      // ======================================
+      // 13. ENVIAR RESPUESTA XML
+      // ======================================
 
       res.setHeader("Content-Type", "application/rss+xml; charset=UTF-8");
-      res.status(200).send(rss);
+
+      res.status(200).send(xml);
     } catch (error) {
       console.error("Error generando RSS FR:", error);
+
       res.status(500).send("Error generando RSS FR");
     }
   }

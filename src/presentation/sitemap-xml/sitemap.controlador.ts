@@ -3,24 +3,92 @@ import { pool } from "../../db/db-config";
 
 const SITE = "https://lobitoisaias.com";
 
+interface BlogSitemapRow {
+  slug: string;
+  updated_at: string | Date | null;
+  images: string | null;
+  categoria_slug: string | null;
+}
+
+interface CategoriaSitemapRow {
+  slug: string;
+  updated_at: string | Date | null;
+}
+
+function xmlEscape(value: string): string {
+  return value
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
+
+function formatLastmod(value: string | Date | null | undefined): string | null {
+  if (!value) return null;
+
+  const fecha = new Date(value);
+
+  if (Number.isNaN(fecha.getTime())) {
+    return null;
+  }
+
+  return fecha.toISOString().slice(0, 10);
+}
+
 export class SitemapXmlControlador {
   async getSitemapXml(_req: Request, res: Response) {
     try {
-      const today = new Date().toISOString().slice(0, 10);
+      // =========================================
+      // 1. ARTÍCULOS ACTIVOS CON SU CATEGORÍA
+      // =========================================
 
-      // 1) Blog ES
-      const { rows } = await pool.query<{
-        slug: string;
-        updated_at: string | Date | null;
-        images: string | null;
-      }>(`
-        SELECT slug, "updatedAt" AS updated_at, images
-        FROM blog
-        WHERE activo = TRUE
-        ORDER BY "updatedAt" DESC
-      `);
+      const { rows: articulos } = await pool.query<BlogSitemapRow>(`
+          SELECT
+            b.slug,
+            b."updatedAt" AS updated_at,
+            b.images,
+            cat.slug AS categoria_slug
+          FROM blog b
+          LEFT JOIN LATERAL (
+            SELECT c.slug
+            FROM blog_categoria bc
+            INNER JOIN categoria c
+              ON c.id = bc."categoriaId"
+            WHERE bc."blogId" = b.id
+              AND NULLIF(TRIM(c.slug), '') IS NOT NULL
+            ORDER BY c.slug ASC
+            LIMIT 1
+          ) cat ON TRUE
+          WHERE b.activo = TRUE
+            AND NULLIF(TRIM(b.slug), '') IS NOT NULL
+          ORDER BY b."updatedAt" DESC
+        `);
 
-      // 2) Rutas estáticas ES (sin duplicados)
+      // =========================================
+      // 2. CATEGORÍAS DINÁMICAS DE POSTGRESQL
+      // =========================================
+
+      const { rows: categorias } = await pool.query<CategoriaSitemapRow>(`
+          SELECT
+            c.slug,
+            MAX(b."updatedAt") AS updated_at
+          FROM categoria c
+          LEFT JOIN blog_categoria bc
+            ON bc."categoriaId" = c.id
+          LEFT JOIN blog b
+            ON b.id = bc."blogId"
+            AND b.activo = TRUE
+          WHERE NULLIF(TRIM(c.slug), '') IS NOT NULL
+          GROUP BY c.id, c.slug
+          ORDER BY c.slug ASC
+        `);
+
+      // =========================================
+      // 3. RUTAS ESTÁTICAS ESPAÑOL
+      // CONSERVAMOS TODAS LAS ORIGINALES
+      // =========================================
+
       const staticLocs = [
         "/",
         "/blog",
@@ -31,10 +99,9 @@ export class SitemapXmlControlador {
         "/terminos-condiciones",
         "/sobre-nosotros",
         "/tecnologias",
-        // "/diamantes-gratis",
-        // "/ganador-diamantes-gratis",
         "/tutoriales",
-        // herramientas
+
+        // Herramientas
         "/contador-palabras",
         "/certificado-laboral-online",
         "/pdf/firmar-pdf",
@@ -55,57 +122,128 @@ export class SitemapXmlControlador {
         "/calcular-materiales-para-gypsum",
         "/bing-homepage-quiz",
       ];
-      const staticRoutes = Array.from(new Set(staticLocs)) // dedupe
-        .map((loc) => `${SITE}${loc}`);
 
-      // helpers
-      const xmlEscape = (s: string) =>
-        s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+      // =========================================
+      // 4. CONSTRUCTOR XML SIN DUPLICADOS
+      // =========================================
 
-      let sitemap = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-      sitemap += `<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"\n`;
-      sitemap += `        xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">\n`;
+      const urlsAgregadas = new Set<string>();
 
-      // 3) Estáticas con lastmod
-      for (const loc of staticRoutes) {
-        sitemap += `  <url>\n`;
-        sitemap += `    <loc>${xmlEscape(loc)}</loc>\n`;
-        sitemap += `    <lastmod>${today}</lastmod>\n`;
-        sitemap += `  </url>\n`;
+      const partesXml: string[] = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9" xmlns:image="http://www.google.com/schemas/sitemap-image/1.1">',
+      ];
+
+      function agregarUrl(
+        pathname: string,
+        fecha?: string | Date | null,
+        imagen?: string | null,
+      ) {
+        const url = `${SITE}${pathname}`;
+
+        if (urlsAgregadas.has(url)) {
+          return;
+        }
+
+        urlsAgregadas.add(url);
+
+        partesXml.push("  <url>");
+        partesXml.push(`    <loc>${xmlEscape(url)}</loc>`);
+
+        const lastmod = formatLastmod(fecha);
+
+        if (lastmod) {
+          partesXml.push(`    <lastmod>${lastmod}</lastmod>`);
+        }
+
+        if (imagen) {
+          partesXml.push("    <image:image>");
+          partesXml.push(`      <image:loc>${xmlEscape(imagen)}</image:loc>`);
+          partesXml.push("    </image:image>");
+        }
+
+        partesXml.push("  </url>");
       }
 
-      // 4) Dinámicas (posts)
-      for (const row of rows) {
-        const slug = row.slug?.toString() ?? "";
+      // =========================================
+      // 5. AGREGAR PÁGINAS ESTÁTICAS
+      // =========================================
+
+      for (const ruta of new Set(staticLocs)) {
+        agregarUrl(ruta);
+      }
+
+      // =========================================
+      // 6. AGREGAR CATEGORÍAS PÚBLICAS
+      //
+      // /marketing
+      // /finanzas
+      // =========================================
+
+      for (const categoria of categorias) {
+        const slug = categoria.slug?.trim();
+
         if (!slug) continue;
 
-        const url = `${SITE}/blog/${encodeURIComponent(slug)}`;
-        const lastmod = row.updated_at
-          ? new Date(row.updated_at).toISOString().slice(0, 10)
-          : today;
-
-        sitemap += `  <url>\n`;
-        sitemap += `    <loc>${xmlEscape(url)}</loc>\n`;
-        sitemap += `    <lastmod>${lastmod}</lastmod>\n`;
-        sitemap += `  </url>\n`;
-
-        if (row.images) {
-          const img = `${SITE}/cargar-archivo/blog/${encodeURIComponent(row.images)}`;
-          // si quieres la imagen dentro del <url>:
-          sitemap = sitemap.replace(
-            /<\/url>\n$/,
-            `    <image:image>\n      <image:loc>${xmlEscape(img)}</image:loc>\n    </image:image>\n  </url>\n`,
-          );
-        }
+        agregarUrl(`/${encodeURIComponent(slug)}`, categoria.updated_at);
       }
 
-      sitemap += `</urlset>`;
+      // =========================================
+      // 7. AGREGAR ARTÍCULOS ACTIVOS
+      //
+      // Con categoría:
+      // /marketing/slug-del-articulo
+      //
+      // Sin categoría:
+      // /blog/slug-del-articulo
+      // =========================================
+
+      for (const articulo of articulos) {
+        const slug = articulo.slug?.trim();
+
+        if (!slug) continue;
+
+        const categoriaSlug = articulo.categoria_slug?.trim();
+
+        let pathname: string;
+
+        if (categoriaSlug) {
+          pathname =
+            `/${encodeURIComponent(categoriaSlug)}` +
+            `/${encodeURIComponent(slug)}`;
+        } else {
+          pathname = `/blog/${encodeURIComponent(slug)}`;
+        }
+
+        // Mantener la estructura de imágenes
+        // utilizada por el sitemap original.
+        const nombreImagen = articulo.images?.trim();
+
+        const imagen = nombreImagen
+          ? `${SITE}/cargar-archivo/blog/${encodeURIComponent(nombreImagen)}`
+          : null;
+
+        agregarUrl(pathname, articulo.updated_at, imagen);
+      }
+
+      // =========================================
+      // 8. CERRAR XML
+      // =========================================
+
+      partesXml.push("</urlset>");
+
+      const sitemap = partesXml.join("\n");
+
+      // =========================================
+      // 9. ENVIAR RESPUESTA
+      // =========================================
 
       res.setHeader("Content-Type", "application/xml; charset=UTF-8");
-      // res.setHeader("Cache-Control", "public, max-age=3600, s-maxage=3600"); // opcional
+
       res.status(200).send(sitemap);
     } catch (error) {
       console.error("Error generando sitemap ES:", error);
+
       res.status(500).send("Error generando sitemap ES");
     }
   }

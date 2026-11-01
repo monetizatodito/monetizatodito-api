@@ -1,172 +1,345 @@
 import { Request, Response } from "express";
 import { pool } from "../../db/db-config";
 
+// ============================================
+// CONFIGURACIÓN RSS ESPAÑOL
+// ============================================
+
 const SITE = "https://lobitoisaias.com";
+const MAX_ARTICULOS = 30;
 
-export class RssXmlControlador {
-  async getRssXml(_req: Request, res: Response) {
-    try {
-      const { rows } = await pool.query<{
-        slug: string | null;
-        titulo: unknown;
-        descripcion: unknown;
-        contenido: unknown;
-        images: string | null;
-        updated_at: string | Date | null;
-        created_at: string | Date | null;
-      }>(`
-        SELECT
-          slug,
-          titulo,
-          descripcion,
-          contenido,
-          images,
-          "updatedAt" AS updated_at,
-          "createdAt" AS created_at
-        FROM blog
-        WHERE activo = TRUE
-          AND slug IS NOT NULL
-          AND slug <> ''
-        ORDER BY "updatedAt" DESC
-        LIMIT 30
-      `);
+// ============================================
+// TIPOS
+// ============================================
 
-      const xmlEscape = (value: unknown): string => {
-        const s =
-          typeof value === "string"
-            ? value
-            : value == null
-              ? ""
-              : String(value);
+interface ArticuloRss {
+  slug: string | null;
+  categoria_slug: string | null;
+  titulo: unknown;
+  descripcion: unknown;
+  contenido: unknown;
+  images: string | null;
+  updated_at: string | Date | null;
+  created_at: string | Date | null;
+}
 
-        return s
-          .replace(/&/g, "&amp;")
-          .replace(/</g, "&lt;")
-          .replace(/>/g, "&gt;")
-          .replace(/"/g, "&quot;")
-          .replace(/'/g, "&apos;");
-      };
+// ============================================
+// PROTEGER EL XML
+// ============================================
 
-      const toPlainText = (value: unknown): string => {
-        if (value == null) return "";
+function xmlEscape(value: unknown): string {
+  const texto =
+    typeof value === "string" ? value : value == null ? "" : String(value);
 
-        if (typeof value === "string") {
-          return value;
-        }
+  return texto
+    .replace(/[\u0000-\u0008\u000B\u000C\u000E-\u001F\uFFFE\uFFFF]/g, "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&apos;");
+}
 
-        if (typeof value === "number" || typeof value === "boolean") {
-          return String(value);
-        }
+// ============================================
+// CONVERTIR CONTENIDO A TEXTO
+// ============================================
 
-        if (Array.isArray(value)) {
-          return value
-            .map((item) => {
-              if (typeof item === "string") return item;
-              if (item == null) return "";
-              if (typeof item === "object") {
-                try {
-                  return JSON.stringify(item);
-                } catch {
-                  return "";
-                }
-              }
-              return String(item);
-            })
-            .join(" ");
-        }
+function toPlainText(value: unknown): string {
+  if (value == null) return "";
 
-        if (typeof value === "object") {
+  if (typeof value === "string") {
+    return value;
+  }
+
+  if (typeof value === "number" || typeof value === "boolean") {
+    return String(value);
+  }
+
+  if (Array.isArray(value)) {
+    return value
+      .map((item) => {
+        if (typeof item === "string") return item;
+        if (item == null) return "";
+
+        if (typeof item === "object") {
           try {
-            return JSON.stringify(value);
+            return JSON.stringify(item);
           } catch {
             return "";
           }
         }
 
-        return String(value);
-      };
+        return String(item);
+      })
+      .join(" ");
+  }
 
-      const stripHtml = (value: unknown): string => {
-        return toPlainText(value)
-          .replace(/<[^>]*>/g, " ")
-          .replace(/\s+/g, " ")
-          .trim();
-      };
+  if (typeof value === "object") {
+    try {
+      return JSON.stringify(value);
+    } catch {
+      return "";
+    }
+  }
 
-      const buildImageUrl = (value: string): string => {
-        const img = value.trim();
+  return String(value);
+}
 
-        if (!img) return "";
+// ============================================
+// LIMPIAR ETIQUETAS HTML
+// ============================================
 
-        if (img.startsWith("http://") || img.startsWith("https://")) {
-          return img;
-        }
+function stripHtml(value: unknown): string {
+  return toPlainText(value)
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-        return `${SITE}/cargar-archivo/blog/${encodeURIComponent(img)}`;
-      };
+// ============================================
+// CODIFICAR SLUGS
+// ============================================
 
-      let rss = `<?xml version="1.0" encoding="UTF-8"?>\n`;
-      rss += `<rss version="2.0">\n`;
-      rss += `  <channel>\n`;
-      rss += `    <title>Lobito Isaias</title>\n`;
-      rss += `    <link>${SITE}</link>\n`;
-      rss += `    <description>Últimos artículos y noticias de Lobito Isaias</description>\n`;
-      rss += `    <language>es-EC</language>\n`;
-      rss += `    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>\n`;
+function encodeSlug(value: string): string {
+  return encodeURIComponent(value.trim().normalize("NFC"));
+}
 
-      for (const row of rows) {
-        const slug = typeof row.slug === "string" ? row.slug.trim() : "";
+// ============================================
+// CONSTRUIR URL DE IMAGEN
+// ============================================
+
+function buildImageUrl(value: string | null): string | null {
+  if (!value?.trim()) return null;
+
+  const imagen = value.trim();
+
+  if (/^https?:\/\//i.test(imagen)) {
+    return imagen;
+  }
+
+  return `${SITE}/cargar-archivo/blog/` + encodeURIComponent(imagen);
+}
+
+// ============================================
+// TIPO MIME REAL DE LA IMAGEN
+// ============================================
+
+function obtenerMimeImagen(url: string): string | null {
+  const pathname = url.split("?")[0].toLowerCase();
+
+  if (pathname.endsWith(".png")) return "image/png";
+  if (pathname.endsWith(".webp")) return "image/webp";
+  if (pathname.endsWith(".avif")) return "image/avif";
+  if (pathname.endsWith(".gif")) return "image/gif";
+  if (pathname.endsWith(".jpg")) return "image/jpeg";
+  if (pathname.endsWith(".jpeg")) return "image/jpeg";
+
+  return null;
+}
+
+// ============================================
+// FORMATEAR FECHA RSS
+// ============================================
+
+function formatRssDate(
+  updatedAt: string | Date | null,
+  createdAt: string | Date | null,
+): string {
+  const valor = updatedAt || createdAt;
+
+  if (valor) {
+    const fecha = new Date(valor);
+
+    if (!Number.isNaN(fecha.getTime())) {
+      return fecha.toUTCString();
+    }
+  }
+
+  return new Date().toUTCString();
+}
+
+// ============================================
+// CONTROLADOR RSS ESPAÑOL
+// ============================================
+
+export class RssXmlControlador {
+  async getRssXml(_req: Request, res: Response) {
+    try {
+      // ======================================
+      // 1. CONSULTAR ÚLTIMOS ARTÍCULOS
+      // ACTIVOS Y SU CATEGORÍA ORIGINAL
+      // ======================================
+
+      const { rows: articulos } = await pool.query<ArticuloRss>(`
+          SELECT
+            b.slug,
+            b.titulo,
+            b.descripcion,
+            b.contenido,
+            b.images,
+            b."updatedAt" AS updated_at,
+            b."createdAt" AS created_at,
+            cat.slug AS categoria_slug
+
+          FROM blog b
+
+          LEFT JOIN LATERAL (
+            SELECT
+              c.slug
+
+            FROM blog_categoria bc
+
+            INNER JOIN categoria c
+              ON c.id = bc."categoriaId"
+
+            WHERE bc."blogId" = b.id
+              AND NULLIF(TRIM(c.slug), '') IS NOT NULL
+
+            ORDER BY c.slug ASC
+
+            LIMIT 1
+          ) cat ON TRUE
+
+          WHERE b.activo = TRUE
+            AND NULLIF(TRIM(b.slug), '') IS NOT NULL
+
+          ORDER BY b."updatedAt" DESC NULLS LAST
+
+          LIMIT ${MAX_ARTICULOS}
+        `);
+
+      // ======================================
+      // 2. CONSTRUIR RSS 2.0
+      // ======================================
+
+      const rss: string[] = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<rss version="2.0" xmlns:media="http://search.yahoo.com/mrss/">',
+        "  <channel>",
+        "    <title>Lobito Isaías</title>",
+        `    <link>${SITE}</link>`,
+        "    <description>Últimos artículos, noticias, tutoriales y guías de Lobito Isaías</description>",
+        "    <language>es-EC</language>",
+        `    <lastBuildDate>${new Date().toUTCString()}</lastBuildDate>`,
+      ];
+
+      // ======================================
+      // 3. GENERAR ENTRADAS DEL RSS
+      // ======================================
+
+      for (const articulo of articulos) {
+        const slug =
+          typeof articulo.slug === "string" ? articulo.slug.trim() : "";
+
         if (!slug) continue;
 
-        const link = `${SITE}/blog/${encodeURIComponent(slug)}`;
+        const categoriaSlug = articulo.categoria_slug?.trim() || "";
 
-        const titleText = stripHtml(row.titulo) || "Sin título";
-        const title = xmlEscape(titleText);
+        // ====================================
+        // 4. URL PÚBLICA DEL ARTÍCULO
+        //
+        // Con categoría:
+        // /marketing/slug
+        //
+        // Sin categoría:
+        // /blog/slug
+        // ====================================
 
-        const descripcionText =
-          typeof row.descripcion === "string"
-            ? row.descripcion.trim()
-            : stripHtml(row.descripcion);
+        const link = categoriaSlug
+          ? `${SITE}/${encodeSlug(categoriaSlug)}/${encodeSlug(slug)}`
+          : `${SITE}/blog/${encodeSlug(slug)}`;
 
-        const contenidoText = stripHtml(row.contenido);
+        // ====================================
+        // 5. GUID ESTABLE
+        //
+        // Conservamos el identificador
+        // histórico basado en /blog/slug
+        // para evitar duplicados en lectores
+        // RSS cuando cambie la categoría.
+        // ====================================
 
-        const rawDescription =
-          descripcionText ||
-          contenidoText.slice(0, 220) ||
-          "Lee este artículo en Monetiza Todito";
+        const guid = `${SITE}/blog/${encodeSlug(slug)}`;
 
-        const description = xmlEscape(rawDescription);
+        // ====================================
+        // 6. TÍTULO
+        // ====================================
 
-        const pubDate = new Date(
-          row.updated_at || row.created_at || Date.now(),
-        ).toUTCString();
+        const titulo = stripHtml(articulo.titulo) || "Sin título";
 
-        rss += `    <item>\n`;
-        rss += `      <title>${title}</title>\n`;
-        rss += `      <link>${xmlEscape(link)}</link>\n`;
-        rss += `      <guid isPermaLink="true">${xmlEscape(link)}</guid>\n`;
-        rss += `      <pubDate>${pubDate}</pubDate>\n`;
-        rss += `      <description>${description}</description>\n`;
+        // ====================================
+        // 7. DESCRIPCIÓN
+        // ====================================
 
-        if (row.images && typeof row.images === "string" && row.images.trim()) {
-          const imageUrl = buildImageUrl(row.images);
+        const descripcion = stripHtml(articulo.descripcion);
 
-          if (imageUrl) {
-            rss += `      <enclosure url="${xmlEscape(imageUrl)}" type="image/jpeg" />\n`;
-          }
+        const contenido = stripHtml(articulo.contenido);
+
+        const textoDescripcion =
+          descripcion ||
+          contenido.slice(0, 220) ||
+          "Lee este artículo en Lobito Isaías";
+
+        // ====================================
+        // 8. FECHA DE PUBLICACIÓN
+        // ====================================
+
+        const pubDate = formatRssDate(articulo.updated_at, articulo.created_at);
+
+        // ====================================
+        // 9. GENERAR ITEM
+        // ====================================
+
+        rss.push("    <item>");
+
+        rss.push(`      <title>${xmlEscape(titulo)}</title>`);
+
+        rss.push(`      <link>${xmlEscape(link)}</link>`);
+
+        rss.push(`      <guid isPermaLink="false">${xmlEscape(guid)}</guid>`);
+
+        rss.push(`      <pubDate>${xmlEscape(pubDate)}</pubDate>`);
+
+        rss.push(
+          `      <description>${xmlEscape(textoDescripcion)}</description>`,
+        );
+
+        // ====================================
+        // 10. IMAGEN DEL ARTÍCULO
+        // ====================================
+
+        const imagen = buildImageUrl(articulo.images);
+
+        if (imagen) {
+          const mime = obtenerMimeImagen(imagen);
+
+          rss.push(
+            `      <media:content url="${xmlEscape(imagen)}" medium="image"${mime ? ` type="${mime}"` : ""} />`,
+          );
         }
 
-        rss += `    </item>\n`;
+        rss.push("    </item>");
       }
 
-      rss += `  </channel>\n`;
-      rss += `</rss>`;
+      // ======================================
+      // 11. CERRAR DOCUMENTO
+      // ======================================
+
+      rss.push("  </channel>");
+      rss.push("</rss>");
+
+      // ======================================
+      // 12. ENVIAR RSS
+      // ======================================
+
+      const xml = rss.join("\n");
 
       res.setHeader("Content-Type", "application/rss+xml; charset=UTF-8");
-      res.status(200).send(rss);
+
+      res.status(200).send(xml);
     } catch (error) {
-      console.error("Error generando RSS XML:", error);
-      res.status(500).send("Error generando RSS XML");
+      console.error("Error generando RSS XML ES:", error);
+
+      res.status(500).send("Error generando RSS XML ES");
     }
   }
 }
