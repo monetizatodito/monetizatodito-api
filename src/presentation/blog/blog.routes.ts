@@ -16,6 +16,23 @@ export class BlogRoutes {
     router.get("/", parseLocale, controller.getBlog);
     router.get("/autor", parseLocale, controller.getBlogByAutor);
     router.get("/slug/:slug", parseLocale, controller.getBlogSlug);
+
+    // =========================================
+    // TRADUCCIÓN DE CATEGORÍAS - ADMINISTRADOR
+    // =========================================
+
+    router.post(
+      "/categoria/:id/traducir",
+      [AuthMiddleware.validateJWT, ValidardRoll.tieneRoll("admin", "empresa")],
+      controller.traducirCategoriaManual,
+    );
+
+    router.post(
+      "/categorias/traducir-pendientes",
+      [AuthMiddleware.validateJWT, ValidardRoll.tieneRoll("admin", "empresa")],
+      controller.traducirCategoriasPendientes,
+    );
+
     // ===========================================
     // CATEGORÍAS PÚBLICAS - SOLO LECTURA
     // ===========================================

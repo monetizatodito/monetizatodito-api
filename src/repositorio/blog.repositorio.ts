@@ -1064,6 +1064,7 @@ END AS categoria_slug
     const sql = `
   SELECT
     c.id,
+    c.slug AS slug_base,
 
     CASE
       WHEN $1 = 'es' THEN c.nombre
@@ -1100,6 +1101,51 @@ END AS categoria_slug
 `;
 
     const { rows } = await pool.query(sql, [locale]);
+
+    return rows;
+  }
+
+  public async obtenerCategoriaBasePorId(id: string) {
+    const { rows } = await pool.query<{
+      id: string;
+      nombre: string;
+      slug: string | null;
+      descripcion: string | null;
+    }>(
+      `
+    SELECT id, nombre, slug, descripcion
+    FROM categoria
+    WHERE id = $1
+    LIMIT 1
+    `,
+      [id],
+    );
+
+    return rows[0] ?? null;
+  }
+
+  public async obtenerCategoriasPendientesTraduccion(limit = 10) {
+    const { rows } = await pool.query<{ id: string }>(
+      `
+    SELECT c.id
+    FROM categoria c
+    WHERE EXISTS (
+      SELECT 1
+      FROM unnest(
+        ARRAY['en', 'pt', 'fr', 'de', 'ar']
+      ) AS idioma(locale)
+      WHERE NOT EXISTS (
+        SELECT 1
+        FROM categoria_translation ct
+        WHERE ct."categoriaId" = c.id
+          AND ct.locale = idioma.locale
+      )
+    )
+    ORDER BY c."createdAt" ASC, c.id ASC
+    LIMIT $1
+    `,
+      [Math.max(1, Math.min(50, limit))],
+    );
 
     return rows;
   }

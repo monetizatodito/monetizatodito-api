@@ -731,6 +731,147 @@ export class BlogService {
   public async listarCategoriasNavegacion(locale: string) {
     return this.blogRepositorio.listarCategoriasNavegacion(locale);
   }
+
+  public async traducirCategoriaPorId(categoriaId: string) {
+    const categoria =
+      await this.blogRepositorio.obtenerCategoriaBasePorId(categoriaId);
+
+    if (!categoria) {
+      throw new Error(`No existe la categoría con ID ${categoriaId}`);
+    }
+
+    const resultado = {
+      categoriaId: categoria.id,
+      categoria: categoria.nombre,
+      creadas: [] as string[],
+      existentes: [] as string[],
+      errores: [] as { locale: string; mensaje: string }[],
+    };
+
+    async function procesarIdioma(
+      service: BlogService,
+      locale: CategoriaLocale,
+    ) {
+      try {
+        const existente = await service.blogRepositorio.getCategoriaTranslation(
+          categoria.id,
+          locale,
+        );
+
+        // Nunca modificar una traducción existente.
+        if (existente) {
+          resultado.existentes.push(locale);
+          return;
+        }
+
+        const nombreTraducido = (
+          await translateText(categoria.nombre, locale)
+        ).trim();
+
+        if (!nombreTraducido) {
+          throw new Error("Nombre traducido vacío");
+        }
+
+        const descripcionTraducida = categoria.descripcion
+          ? (await translateText(categoria.descripcion, locale)).trim()
+          : null;
+
+        const baseSlug = generarSlugCategoria(nombreTraducido);
+
+        const sufijo = sufijoCategoria(categoria.id, locale);
+
+        const slugInicial = baseSlug || `categoria-${sufijo}`;
+
+        const slugAlternativo = `${Array.from(slugInicial).slice(0, 130).join("")}-${sufijo}`;
+
+        const candidatos = [...new Set([slugInicial, slugAlternativo])];
+
+        for (const slug of candidatos) {
+          try {
+            await service.blogRepositorio.guardarCategoriaTranslation({
+              categoriaId: categoria.id,
+              locale,
+              nombre: nombreTraducido,
+              slug,
+              descripcion: descripcionTraducida || null,
+            });
+
+            const guardada =
+              await service.blogRepositorio.getCategoriaTranslation(
+                categoria.id,
+                locale,
+              );
+
+            if (guardada) {
+              resultado.creadas.push(locale);
+              return;
+            }
+
+            throw new Error("No se pudo confirmar la traducción guardada");
+          } catch (error: any) {
+            // La restricción UNIQUE de PostgreSQL
+            // impide repetir un slug en un mismo idioma.
+            if (error?.code !== "23505") {
+              throw error;
+            }
+
+            // Puede que otra operación haya guardado
+            // esta traducción simultáneamente.
+            const guardada =
+              await service.blogRepositorio.getCategoriaTranslation(
+                categoria.id,
+                locale,
+              );
+
+            if (guardada) {
+              resultado.existentes.push(locale);
+              return;
+            }
+
+            // Si el slug estaba ocupado por otra
+            // categoría, intentar con el sufijo.
+          }
+        }
+
+        throw new Error(`No fue posible guardar un slug único para ${locale}`);
+      } catch (error) {
+        resultado.errores.push({
+          locale,
+          mensaje: error instanceof Error ? error.message : "Error desconocido",
+        });
+      }
+    }
+
+    // Máximo dos traducciones simultáneas.
+    // Evita lanzar cinco procesos a la vez.
+    for (let i = 0; i < IDIOMAS_CATEGORIA.length; i += 2) {
+      await Promise.all(
+        IDIOMAS_CATEGORIA.slice(i, i + 2).map((locale) =>
+          procesarIdioma(this, locale),
+        ),
+      );
+    }
+
+    return resultado;
+  }
+
+  public async traducirCategoriasPendientes(limit = 10) {
+    const categorias =
+      await this.blogRepositorio.obtenerCategoriasPendientesTraduccion(limit);
+
+    const resultados = [];
+
+    for (const categoria of categorias) {
+      const resultado = await this.traducirCategoriaPorId(categoria.id);
+
+      resultados.push(resultado);
+    }
+
+    return {
+      procesadas: resultados.length,
+      resultados,
+    };
+  }
 }
 
 function crearSlugCategoria(texto: string): string {
@@ -743,4 +884,35 @@ function crearSlugCategoria(texto: string): string {
     .replace(/^-+|-+$/g, "")
     .slice(0, 140)
     .replace(/-+$/g, "");
+}
+
+import { createHash } from "node:crypto";
+
+type CategoriaLocale = "en" | "pt" | "fr" | "de" | "ar";
+
+const IDIOMAS_CATEGORIA: readonly CategoriaLocale[] = [
+  "en",
+  "pt",
+  "fr",
+  "de",
+  "ar",
+];
+
+function generarSlugCategoria(texto: string): string {
+  const slug = texto
+    .normalize("NFKC")
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/\p{M}/gu, "")
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-+|-+$/g, "");
+
+  return Array.from(slug).slice(0, 130).join("").replace(/-+$/g, "");
+}
+
+function sufijoCategoria(categoriaId: string, locale: string): string {
+  return createHash("sha256")
+    .update(`${categoriaId}:${locale}`)
+    .digest("hex")
+    .slice(0, 8);
 }

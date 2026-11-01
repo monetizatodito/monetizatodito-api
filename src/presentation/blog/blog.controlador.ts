@@ -457,4 +457,34 @@ export class BlogControlador {
       return this.handleError(error, res);
     }
   };
+
+  public traducirCategoriaManual = async (req: Request, res: Response) => {
+    try {
+      const categoriaId = String(req.params.id || "").trim();
+
+      if (!categoriaId) {
+        return res.status(400).json({
+          error: "El ID de categoría es obligatorio",
+        });
+      }
+
+      const resultado =
+        await this.blogService.traducirCategoriaPorId(categoriaId);
+
+      return res.status(200).json(resultado);
+    } catch (error) {
+      return this.handleError(error, res);
+    }
+  };
+
+  public traducirCategoriasPendientes = async (req: Request, res: Response) => {
+    try {
+      // Lotes pequeños para no saturar el traductor.
+      const resultado = await this.blogService.traducirCategoriasPendientes(5);
+
+      return res.status(200).json(resultado);
+    } catch (error) {
+      return this.handleError(error, res);
+    }
+  };
 }
