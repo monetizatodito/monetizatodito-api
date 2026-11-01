@@ -361,4 +361,100 @@ export class BlogControlador {
       return this.handleError(error, res);
     }
   };
+
+  public listarCategoriaPublica = async (req: Request, res: Response) => {
+    try {
+      const categoriaSlug = String(req.params.categoriaSlug || "");
+
+      const localeSolicitado = String(req.query.locale || "es");
+
+      const locales = ["es", "en", "pt", "fr", "de", "ar"];
+
+      const locale = locales.includes(localeSolicitado)
+        ? localeSolicitado
+        : "es";
+
+      const pageRaw = Number(req.query.page || 1);
+      const limitRaw = Number(req.query.limit || 12);
+
+      const page = Number.isSafeInteger(pageRaw) && pageRaw > 0 ? pageRaw : 1;
+
+      const limit = Number.isSafeInteger(limitRaw)
+        ? Math.min(50, Math.max(1, limitRaw))
+        : 12;
+
+      const resultado = await this.blogService.listarCategoriaPublica(
+        categoriaSlug,
+        locale,
+        page,
+        limit,
+      );
+
+      if (!resultado) {
+        return res.status(404).json({
+          error: "Categoría no encontrada",
+        });
+      }
+
+      return res.status(200).json(resultado);
+    } catch (error) {
+      return this.handleError(error, res);
+    }
+  };
+
+  public obtenerArticuloCategoriaPublica = async (
+    req: Request,
+    res: Response,
+  ) => {
+    try {
+      const categoriaSlug = String(req.params.categoriaSlug || "");
+
+      const slug = String(req.params.slug || "");
+
+      const localeSolicitado = String(req.query.locale || "es");
+
+      const locales = ["es", "en", "pt", "fr", "de", "ar"];
+
+      const locale = locales.includes(localeSolicitado)
+        ? localeSolicitado
+        : "es";
+
+      const blog = await this.blogService.obtenerArticuloCategoriaPublica(
+        categoriaSlug,
+        slug,
+        locale,
+      );
+
+      if (!blog) {
+        return res.status(404).json({
+          error: "Artículo no encontrado en esta categoría",
+        });
+      }
+
+      return res.status(200).json({ blog });
+    } catch (error) {
+      return this.handleError(error, res);
+    }
+  };
+
+  public getCategoriasNav = async (req: Request, res: Response) => {
+    try {
+      const disponibles = ["es", "en", "pt", "fr", "de", "ar"];
+
+      const requestedLocale = String(req.query.locale ?? "es");
+
+      const locale = disponibles.includes(requestedLocale)
+        ? requestedLocale
+        : "es";
+
+      const categorias =
+        await this.blogService.listarCategoriasNavegacion(locale);
+
+      return res.status(200).json({
+        categorias,
+      });
+    } catch (error) {
+      return this.handleError(error, res);
+    }
+  };
 }

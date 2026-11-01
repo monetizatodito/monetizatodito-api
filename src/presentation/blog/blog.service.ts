@@ -701,6 +701,36 @@ export class BlogService {
   public async getCategoriaSlugsDeBlog(blogId: string) {
     return this.blogRepositorio.getCategoriaSlugsDeBlog(blogId);
   }
+
+  public async listarCategoriaPublica(
+    categoriaSlug: string,
+    locale: string,
+    page: number,
+    limit: number,
+  ) {
+    return this.blogRepositorio.listarCategoriaPublica(
+      categoriaSlug,
+      locale,
+      page,
+      limit,
+    );
+  }
+
+  public async obtenerArticuloCategoriaPublica(
+    categoriaSlug: string,
+    postSlug: string,
+    locale: string,
+  ) {
+    return this.blogRepositorio.obtenerArticuloCategoriaPublica(
+      categoriaSlug,
+      postSlug,
+      locale,
+    );
+  }
+
+  public async listarCategoriasNavegacion(locale: string) {
+    return this.blogRepositorio.listarCategoriasNavegacion(locale);
+  }
 }
 
 function crearSlugCategoria(texto: string): string {

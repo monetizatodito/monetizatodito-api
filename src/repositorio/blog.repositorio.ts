@@ -891,4 +891,196 @@ END AS categoria_slug
       ...categoria.traducciones,
     };
   }
+
+  public async listarCategoriaPublica(
+    categoriaSlug: string,
+    locale: string,
+    page: number,
+    limit: number,
+  ) {
+    const categoriaSql = `
+    SELECT
+      c.id,
+      CASE WHEN $2 = 'es' THEN c.nombre ELSE ct.nombre END AS nombre,
+      CASE WHEN $2 = 'es' THEN c.slug ELSE ct.slug END AS slug,
+      CASE WHEN $2 = 'es' THEN c.descripcion ELSE ct.descripcion END AS descripcion
+    FROM categoria c
+    LEFT JOIN categoria_translation ct
+      ON ct."categoriaId" = c.id
+      AND ct.locale = $2
+    WHERE
+      ($2 = 'es' AND c.slug = $1)
+      OR
+      ($2 <> 'es' AND ct.slug = $1)
+    LIMIT 1
+  `;
+
+    const categoriaRes = await pool.query(categoriaSql, [
+      categoriaSlug,
+      locale,
+    ]);
+
+    const categoria = categoriaRes.rows[0];
+
+    if (!categoria) return null;
+
+    const filtro = `
+    FROM blog b
+    INNER JOIN blog_categoria bc
+      ON bc."blogId" = b.id
+    LEFT JOIN blog_translation t
+      ON t.blog_id = b.id
+      AND t.locale = $2
+    WHERE bc."categoriaId" = $1
+      AND b.type = 'post'
+      AND b.activo = TRUE
+      AND (
+        $2 = 'es'
+        OR (
+          t.blog_id IS NOT NULL
+          AND t.slug IS NOT NULL
+        )
+      )
+  `;
+
+    const countRes = await pool.query(
+      `SELECT COUNT(*)::int AS total ${filtro}`,
+      [categoria.id, locale],
+    );
+
+    const totalItems = Number(countRes.rows[0]?.total || 0);
+
+    const offset = (page - 1) * limit;
+
+    const articulosSql = `
+    SELECT
+      b.id,
+      CASE WHEN $2 = 'es' THEN b.titulo ELSE t.titulo END AS titulo,
+      CASE WHEN $2 = 'es' THEN b.slug ELSE t.slug END AS slug,
+      CASE WHEN $2 = 'es' THEN b.descripcion ELSE t.descripcion END AS descripcion,
+      b.images,
+      b.images_alt AS "imagesAlt"
+
+    ${filtro}
+
+    ORDER BY b."createdAt" DESC
+    LIMIT $3 OFFSET $4
+  `;
+
+    const articulosRes = await pool.query(articulosSql, [
+      categoria.id,
+      locale,
+      limit,
+      offset,
+    ]);
+
+    const totalPages = Math.max(1, Math.ceil(totalItems / limit));
+
+    return {
+      categoria,
+      blog: articulosRes.rows,
+      meta: {
+        totalItems,
+        totalPages,
+        currentPage: page,
+        pageSize: limit,
+        hasNextPage: page < totalPages,
+        hasPrevPage: page > 1,
+      },
+    };
+  }
+
+  public async obtenerArticuloCategoriaPublica(
+    categoriaSlug: string,
+    postSlug: string,
+    locale: string,
+  ) {
+    const sql = `
+    SELECT
+      b.id,
+      CASE WHEN $3 = 'es' THEN b.titulo ELSE t.titulo END AS titulo,
+      CASE WHEN $3 = 'es' THEN b.slug ELSE t.slug END AS slug,
+      CASE WHEN $3 = 'es' THEN b.descripcion ELSE t.descripcion END AS descripcion,
+      b.images
+
+    FROM blog b
+
+    INNER JOIN blog_categoria bc
+      ON bc."blogId" = b.id
+
+    INNER JOIN categoria c
+      ON c.id = bc."categoriaId"
+
+    LEFT JOIN categoria_translation ct
+      ON ct."categoriaId" = c.id
+      AND ct.locale = $3
+
+    LEFT JOIN blog_translation t
+      ON t.blog_id = b.id
+      AND t.locale = $3
+
+    WHERE b.type = 'post'
+      AND b.activo = TRUE
+
+      AND (
+        ($3 = 'es' AND c.slug = $1)
+        OR ($3 <> 'es' AND ct.slug = $1)
+      )
+
+      AND (
+        ($3 = 'es' AND b.slug = $2)
+        OR ($3 <> 'es' AND t.slug = $2)
+      )
+
+    LIMIT 1
+  `;
+
+    const { rows } = await pool.query(sql, [categoriaSlug, postSlug, locale]);
+
+    return rows[0] ?? null;
+  }
+
+  public async listarCategoriasNavegacion(locale: string) {
+    const sql = `
+    SELECT
+      c.id,
+
+      CASE
+        WHEN $1 = 'es' THEN c.nombre
+        ELSE ct.nombre
+      END AS nombre,
+
+      CASE
+        WHEN $1 = 'es' THEN c.slug
+        ELSE ct.slug
+      END AS slug,
+
+      CASE
+        WHEN $1 = 'es' THEN c.descripcion
+        ELSE ct.descripcion
+      END AS descripcion
+
+    FROM categoria c
+
+    LEFT JOIN categoria_translation ct
+      ON ct."categoriaId" = c.id
+      AND ct.locale = $1
+
+    WHERE NULLIF(
+      TRIM(
+        CASE
+          WHEN $1 = 'es' THEN c.slug
+          ELSE ct.slug
+        END
+      ),
+      ''
+    ) IS NOT NULL
+
+    ORDER BY nombre ASC;
+  `;
+
+    const { rows } = await pool.query(sql, [locale]);
+
+    return rows;
+  }
 }

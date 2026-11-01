@@ -16,6 +16,22 @@ export class BlogRoutes {
     router.get("/", parseLocale, controller.getBlog);
     router.get("/autor", parseLocale, controller.getBlogByAutor);
     router.get("/slug/:slug", parseLocale, controller.getBlogSlug);
+    // ===========================================
+    // CATEGORÍAS PÚBLICAS - SOLO LECTURA
+    // ===========================================
+
+    router.get(
+      "/categorias-publicas/:categoriaSlug",
+      parseLocale,
+      controller.listarCategoriaPublica,
+    );
+
+    router.get(
+      "/categorias-publicas/:categoriaSlug/articulos/:slug",
+      parseLocale,
+      controller.obtenerArticuloCategoriaPublica,
+    );
+    router.get("/categorias-nav", controller.getCategoriasNav);
 
     // Blogs NO traducidos por locale
     router.get(
