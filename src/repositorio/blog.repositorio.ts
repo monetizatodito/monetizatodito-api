@@ -899,21 +899,39 @@ END AS categoria_slug
     limit: number,
   ) {
     const categoriaSql = `
-    SELECT
-      c.id,
-      CASE WHEN $2 = 'es' THEN c.nombre ELSE ct.nombre END AS nombre,
-      CASE WHEN $2 = 'es' THEN c.slug ELSE ct.slug END AS slug,
-      CASE WHEN $2 = 'es' THEN c.descripcion ELSE ct.descripcion END AS descripcion
-    FROM categoria c
-    LEFT JOIN categoria_translation ct
-      ON ct."categoriaId" = c.id
-      AND ct.locale = $2
-    WHERE
-      ($2 = 'es' AND c.slug = $1)
-      OR
-      ($2 <> 'es' AND ct.slug = $1)
-    LIMIT 1
-  `;
+  SELECT
+    c.id,
+
+    CASE
+      WHEN $2 = 'es' THEN c.nombre
+      ELSE COALESCE(NULLIF(ct.nombre, ''), c.nombre)
+    END AS nombre,
+
+    CASE
+      WHEN $2 = 'es' THEN c.slug
+      ELSE COALESCE(NULLIF(ct.slug, ''), c.slug)
+    END AS slug,
+
+    CASE
+      WHEN $2 = 'es' THEN c.descripcion
+      ELSE COALESCE(NULLIF(ct.descripcion, ''), c.descripcion)
+    END AS descripcion
+
+  FROM categoria c
+
+  LEFT JOIN categoria_translation ct
+    ON ct."categoriaId" = c.id
+    AND ct.locale = $2
+
+  WHERE (
+    CASE
+      WHEN $2 = 'es' THEN c.slug
+      ELSE COALESCE(NULLIF(ct.slug, ''), c.slug)
+    END
+  ) = $1
+
+  LIMIT 1
+`;
 
     const categoriaRes = await pool.query(categoriaSql, [
       categoriaSlug,
@@ -1022,10 +1040,12 @@ END AS categoria_slug
     WHERE b.type = 'post'
       AND b.activo = TRUE
 
-      AND (
-        ($3 = 'es' AND c.slug = $1)
-        OR ($3 <> 'es' AND ct.slug = $1)
-      )
+     AND (
+  CASE
+    WHEN $3 = 'es' THEN c.slug
+    ELSE COALESCE(NULLIF(ct.slug, ''), c.slug)
+  END
+) = $1
 
       AND (
         ($3 = 'es' AND b.slug = $2)
@@ -1042,42 +1062,42 @@ END AS categoria_slug
 
   public async listarCategoriasNavegacion(locale: string) {
     const sql = `
-    SELECT
-      c.id,
+  SELECT
+    c.id,
 
-      CASE
-        WHEN $1 = 'es' THEN c.nombre
-        ELSE ct.nombre
-      END AS nombre,
+    CASE
+      WHEN $1 = 'es' THEN c.nombre
+      ELSE COALESCE(NULLIF(ct.nombre, ''), c.nombre)
+    END AS nombre,
 
+    CASE
+      WHEN $1 = 'es' THEN c.slug
+      ELSE COALESCE(NULLIF(ct.slug, ''), c.slug)
+    END AS slug,
+
+    CASE
+      WHEN $1 = 'es' THEN c.descripcion
+      ELSE COALESCE(NULLIF(ct.descripcion, ''), c.descripcion)
+    END AS descripcion
+
+  FROM categoria c
+
+  LEFT JOIN categoria_translation ct
+    ON ct."categoriaId" = c.id
+    AND ct.locale = $1
+
+  WHERE NULLIF(
+    TRIM(
       CASE
         WHEN $1 = 'es' THEN c.slug
-        ELSE ct.slug
-      END AS slug,
+        ELSE COALESCE(NULLIF(ct.slug, ''), c.slug)
+      END
+    ),
+    ''
+  ) IS NOT NULL
 
-      CASE
-        WHEN $1 = 'es' THEN c.descripcion
-        ELSE ct.descripcion
-      END AS descripcion
-
-    FROM categoria c
-
-    LEFT JOIN categoria_translation ct
-      ON ct."categoriaId" = c.id
-      AND ct.locale = $1
-
-    WHERE NULLIF(
-      TRIM(
-        CASE
-          WHEN $1 = 'es' THEN c.slug
-          ELSE ct.slug
-        END
-      ),
-      ''
-    ) IS NOT NULL
-
-    ORDER BY nombre ASC;
-  `;
+  ORDER BY nombre ASC;
+`;
 
     const { rows } = await pool.query(sql, [locale]);
 
